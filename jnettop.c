@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.28 2004-10-01 20:26:03 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.29 2004-10-01 22:37:07 merunka Exp $
  *
  */
 
@@ -653,6 +653,8 @@ void resolverThreadFunc(gpointer task, gpointer user_data) {
 resolverfailed:
 #if !HAVE_GETHOSTBYADDR_R_8 && !HAVE_GETHOSTBYADDR_7
 	g_mutex_unlock(gethostbyaddrMutex);
+#else
+	name = name; // dummy to avoid deprecated warning on linux
 #endif
 }
 
