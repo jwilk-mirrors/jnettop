@@ -18,6 +18,12 @@
 /* Set to 1 if gethostbyaddr_r takes 8 arguments */
 #undef HAVE_GETHOSTBYADDR_R_8
 
+/* Define to 1 if you have the `inet_ntoa' function. */
+#undef HAVE_INET_NTOA
+
+/* Define to 1 if you have the `inet_ntop' function. */
+#undef HAVE_INET_NTOP
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 

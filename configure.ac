@@ -1,5 +1,5 @@
 # Process this file with autoconf to produce a configure script.
-AC_INIT([jnettop], [0.3], [j@kubs.cz])
+AC_INIT([jnettop], [0.4], [j@kubs.cz])
 AM_INIT_AUTOMAKE
 
 # Checks for programs.
@@ -31,7 +31,7 @@ AM_PATH_GLIB_2_0(2.0.1,, AC_MSG_ERROR("glib >= 2.0.1 library required"), gthread
 AC_FUNC_MEMCMP
 AC_FUNC_STRFTIME
 AC_FUNC_VPRINTF
-AC_CHECK_FUNCS([localtime_r memmove memset pcap_findalldevs pcap_setnonblock])
+AC_CHECK_FUNCS([localtime_r memmove memset pcap_findalldevs pcap_setnonblock inet_ntop inet_ntoa])
 
 AM_CONFIG_HEADER([config.h])
 AC_CONFIG_FILES([Makefile])

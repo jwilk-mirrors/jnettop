@@ -64,6 +64,29 @@ gchar 		line0FormatString[128], line1FormatString[128];
 
 WINDOW		*listWindow;
 
+const char * address2String(int af, const void *src, char *dst, size_t cnt) {
+#if HAVE_INET_NTOP
+	return inet_ntop(af, src, dst, cnt);
+#elif HAVE_INET_NTOA
+	static GStaticMutex mutex = G_STATIC_MUTEX_INIT;
+	char *tmp, *ret = NULL;
+	g_static_mutex_lock(&mutex);
+	switch (af) {
+	case AF_INET:
+		tmp = inet_ntoa(*(struct in_addr *)src);
+		break;
+	}
+	if (tmp && strlen(tmp)<cnt-1) {
+		strcpy(dst, tmp);
+		ret = dst;
+	}
+	g_static_mutex_unlock(&mutex);
+	return ret;
+#else
+# error "no funtion to convert internet address to string found by configure"
+#endif
+}
+
 void debug(const char *format, ...) {
 	if (debugFile) {
 		va_list ap;
@@ -471,13 +494,13 @@ gpointer displayThreadFunc(gpointer data) {
 			formatNumber(s->totalbytes, total, 6);
 			formatNumber(s->srcbytes, totalsrc, 6);
 			formatNumber(s->dstbytes, totaldst, 6);
-			inet_ntop(AF_INET, &s->src, srcaddr, 19);
+			address2String(AF_INET, &s->src, srcaddr, 19);
 			if (s->srcresolv == NULL || s->srcresolv->name == NULL) {
 				psrcaddr = srcaddr;
 			} else {
 				psrcaddr = s->srcresolv->name;
 			}
-			inet_ntop(AF_INET, &s->dst, dstaddr, 19);
+			address2String(AF_INET, &s->dst, dstaddr, 19);
 			if (s->dstresolv == NULL || s->dstresolv->name == NULL) {
 				pdstaddr = dstaddr;
 			} else {
