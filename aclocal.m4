@@ -12,7 +12,7 @@
 # PARTICULAR PURPOSE.
 
 
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/aclocal.m4,v 1.5 2002-08-31 18:40:00 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/aclocal.m4,v 1.6 2002-09-02 15:32:05 merunka Exp $
 
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_5], [Set to 1 if gethostbyaddr_r takes 5 arguments])
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_7], [Set to 1 if gethostbyaddr_r takes 7 arguments])
