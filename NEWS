@@ -1,3 +1,6 @@
+2002-08-28:	Package is now compilable under FreeBSD, Solaris, Debian and on
+		various CPUs. See PORTING file.
+
 2002-08-27:	Added -i command line parameter
 		Added -d command line parameter
 		jnettop now correctly interprets traffic on linux "any" interface

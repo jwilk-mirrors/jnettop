@@ -1,6 +1,6 @@
 Summary: Network traffic tracker
 Name: jnettop
-Version: 0.2
+Version: 0.3
 Release: 1
 Group: Network/Monitoring
 License: GNU
@@ -35,6 +35,9 @@ rm -r $RPM_BUILD_ROOT
 %doc AUTHORS ChangeLog COPYING INSTALL NEWS README
 
 %changelog
+* Thu Aug 27 2002 Jakub Skopal <j@kubs.cz> 0.3-1
+- transition to release 0.3, see ChangeLog
+
 * Thu Aug 27 2002 Jakub Skopal <j@kubs.cz> 0.2-1
 - transition to release 0.2, see ChangeLog
 
