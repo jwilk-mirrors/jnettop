@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.in,v 1.13 2003-07-30 10:38:15 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.in,v 1.14 2004-09-29 19:09:35 merunka Exp $
 SHELL = @SHELL@
 
 srcdir = @srcdir@

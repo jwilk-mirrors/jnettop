@@ -1,3 +1,20 @@
+2004-09-29	Jakub Skopal <j@kubs.cz>
+
+ * modification of IPv6 support
+ * bugfix of spec file to include manual page
+   (thanks go to Martynas Bieliauskas)
+
+2004-09-29	Marcin Kaminski <maxiu@man.poznan.pl>
+
+ * added support for packets counting (instead of just bytes)
+
+2004-08-27	Marcin Kaminski	<maxiu@man.poznan.pl>
+
+ * added IPv6 support (changes: structures, hash algorithms,
+   resolving, filters)
+ * display changed (IPv6 addresses are bigger, so now address
+   field width is dynamic)
+
 2003-07-30	Jakub Skopal	<j@kubs.cz>
 
  * promisc mode parameter added (-p)
@@ -97,4 +114,4 @@
 
  * initial release
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.19 2003-07-30 10:38:15 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.20 2004-09-29 19:09:35 merunka Exp $

@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jfilter.c,v 1.2 2002-08-31 17:15:03 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jfilter.c,v 1.3 2004-09-29 19:09:35 merunka Exp $
  * 
  */
 
@@ -63,7 +63,7 @@ void assignHTTPFilter(ntop_stream *stream, gboolean direction) {
 	stream->filterDataFunc = filterHTTPFunc;
 	stream->filterData = (guchar*)(fd = g_new0(struct ___httpFilterData, 1));
 	fd->direction = direction;
-	fd->protocol = NTOP_PROTO_TCP;
+	fd->protocol = stream->proto;
 	stream->filterDataFreeFunc = freeGenericFilterData;
 }
 /* END: filter HTTP func */
@@ -124,12 +124,13 @@ void assignSMTPFilter(ntop_stream *stream, gboolean direction) {
 	stream->filterDataFunc = filterSMTPFunc;
 	stream->filterData = (guchar*) (fd = g_new0(struct ___smtpFilterData, 1));
 	fd->direction = direction;
-	fd->protocol = NTOP_PROTO_TCP;
+	fd->protocol = stream->proto;
 	stream->filterDataFreeFunc = freeGenericFilterData;
 }
 
 #define IF_TCP_PORT_THEN_ASSIGN(port, assignFunc) \
-	if (stream->proto == NTOP_PROTO_TCP && (stream->srcport == port || stream->dstport == port)) { \
+	if ((stream->proto == NTOP_PROTO_TCP || stream->proto == NTOP_PROTO_TCP6) \
+		&& (stream->srcport == port || stream->dstport == port)) { \
 		assignFunc(stream, stream->dstport == port); \
 		return; \
 	}

@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.21 2003-07-30 10:38:15 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.22 2004-09-29 19:09:35 merunka Exp $
  *
  */
 
@@ -34,7 +34,8 @@
 # define USE_SELECT
 #endif
 
-gchar 	*NTOP_PROTOCOLS[] = { "UNK.", "IP", "TCP", "UDP", "ARP", "ETHER", "SLL", "AGGR." };
+gchar 	*NTOP_PROTOCOLS[] = { "UNK.", "IP", "TCP", "UDP", "ARP", "ETHER", 
+                              "SLL", "AGGR.", "IPv6", "TCP", "UDP" };
 gchar 	*NTOP_AGGREGATION[] = { "none", "port", "host" };
 
 char		pcap_errbuf[PCAP_ERRBUF_SIZE];
@@ -83,8 +84,9 @@ GTimeVal	startTime;
 GTimeVal	historyTime;
 
 guint32		totalSrcBytes, totalDstBytes, totalBytes;
-guint32		totalPackets;
+guint32		totalSrcPackets, totalDstPackets, totalPackets;
 guint32		totalSrcBPS, totalDstBPS, totalBPS;
+guint32		totalSrcPPS, totalDstPPS, totalPPS;
 
 GMutex		*displayStreamsMutex;
 ntop_stream	**displayStreams;
@@ -93,6 +95,7 @@ gchar 		line0FormatString[512], line1FormatString[512], line2FormatString[512];
 
 gboolean	onoffContentFiltering;
 gboolean	onoffBitValues;
+gboolean	onoffPackets;
 gboolean	onoffSuspended;
 gboolean	onoffPromisc;
 
@@ -121,21 +124,48 @@ const char * validateBPFFilter(char *filter) {
 	return ret;
 }
 
-const char * address2String(int af, const void *src, char *dst, size_t cnt) {
-	if (((struct in_addr *)src)->s_addr == 0x01000000) {
+void	setToHostAggregation(int af, ntop_mutableaddress *addr) {
+	switch (af) {
+		case AF_INET:
+			addr->addr4.s_addr = 0x01000000;
+			break;
+		case AF_INET6:
+			addr->addr6.s6_addr32[0] = 0x0;
+			addr->addr6.s6_addr32[1] = 0x0;
+			addr->addr6.s6_addr32[2] = 0x0;
+			addr->addr6.s6_addr32[3] = 0x01000000;
+			break;
+	}
+}
+
+int	isHostAggregation(int af, const ntop_mutableaddress *addr) {
+	switch (af) {
+		case AF_INET:
+			return addr->addr4.s_addr == 0x01000000;
+		case AF_INET6:
+			return addr->addr6.s6_addr32[0] == 0x0 && addr->addr6.s6_addr32[1] == 0x0 && addr->addr6.s6_addr32[2] == 0x0  && addr->addr6.s6_addr32[3] == 0x01000000;
+	}
+	return 0;
+}
+
+const char * address2String(int af, const ntop_mutableaddress *src, char *dst, size_t cnt) {
+	if (isHostAggregation(af, src)) {
 		*dst = '\0';
 		return dst;
 	}
 #if HAVE_INET_NTOP
-	return inet_ntop(af, src, dst, cnt);
+	return inet_ntop(af, (const void *)src, dst, cnt);
 #elif HAVE_INET_NTOA
 	static GStaticMutex mutex = G_STATIC_MUTEX_INIT;
 	char *tmp, *ret = NULL;
 	g_static_mutex_lock(&mutex);
 	switch (af) {
 	case AF_INET:
-		tmp = inet_ntoa(*(struct in_addr *)src);
+		tmp = inet_ntoa(src->addr4);
 		break;
+	case AF_INET6:
+		*dst = '\0'; //TODO: alternative algorithm to resolve IPv6 address on systems not supporting inet_ntop.
+		return dst;
 	}
 	if (tmp && strlen(tmp)<cnt-1) {
 		strcpy(dst, tmp);
@@ -230,8 +260,14 @@ void checkDevices() {
 guint hashStream(gconstpointer key) {
 	const ntop_stream	*stream = (const ntop_stream *)key;
 	guint hash = 0;
-	hash = stream->src.s_addr;
-	hash ^= stream->dst.s_addr;
+	hash = stream->src.addr6.s6_addr32[0];
+	hash ^= stream->src.addr6.s6_addr32[1];
+	hash ^= stream->src.addr6.s6_addr32[2];
+	hash ^= stream->src.addr6.s6_addr32[3];
+	hash ^= stream->dst.addr6.s6_addr32[0];
+	hash ^= stream->dst.addr6.s6_addr32[1];
+	hash ^= stream->dst.addr6.s6_addr32[2];
+	hash ^= stream->dst.addr6.s6_addr32[3];
 	hash ^= (((guint)stream->srcport) << 16) + (guint)stream->dstport;
 	return hash;
 }
@@ -239,11 +275,12 @@ guint hashStream(gconstpointer key) {
 gboolean compareStream(gconstpointer a, gconstpointer b) {
 	const ntop_stream *astr = (const ntop_stream *)a;
 	const ntop_stream *bstr = (const ntop_stream *)b;
-	if ( astr->src.s_addr == bstr->src.s_addr &&
-			astr->dst.s_addr == bstr->dst.s_addr &&
-			astr->proto == bstr->proto &&
+	if (astr->proto == bstr->proto &&
 			astr->srcport == bstr->srcport &&
-			astr->dstport == bstr->dstport )
+			astr->dstport == bstr->dstport &&
+			IN6_ARE_ADDR_EQUAL(&astr->src.addr6, &bstr->src.addr6) &&
+			IN6_ARE_ADDR_EQUAL(&astr->dst.addr6, &bstr->dst.addr6)
+			)
 		return TRUE;
 	return FALSE;
 }
@@ -251,31 +288,50 @@ gboolean compareStream(gconstpointer a, gconstpointer b) {
 gint compareStreamByStat(gconstpointer a, gconstpointer b) {
 	const ntop_stream	*astr = *(const ntop_stream **)a;
 	const ntop_stream	*bstr = *(const ntop_stream **)b;
-	if (astr->totalbps > bstr->totalbps)
-		return -1;
-	else if (astr->totalbps == bstr->totalbps)
-		return 0;
+	if (onoffPackets) {
+		if (astr->totalpps > bstr->totalpps)
+			return -1;
+		else if (astr->totalpps == bstr->totalpps)
+			return 0;
+	} else {
+		if (astr->totalbps > bstr->totalbps)
+			return -1;
+		else if (astr->totalbps == bstr->totalbps)
+			return 0;
+	}
 	return 1;
 }
 
 guint hashResolvEntry(gconstpointer key) {
-	return GPOINTER_TO_UINT(key);
+	const ntop_resolv_entry *resolv = key;
+	guint hash = 0;
+	hash = resolv->addr.addr6.s6_addr32[0];
+	hash ^= resolv->addr.addr6.s6_addr32[1];
+	hash ^= resolv->addr.addr6.s6_addr32[2];
+	hash ^= resolv->addr.addr6.s6_addr32[3];
+	return hash;
 }
 
 gboolean compareResolvEntry(gconstpointer a, gconstpointer b) {
-	return a == b;
+	ntop_resolv_entry	*aa, *bb;
+	if(a == b) return 1;
+	aa = (ntop_resolv_entry *) a;
+	bb = (ntop_resolv_entry *) b;
+	if(aa->af != bb->af)
+		return 0;
+	return !memcmp(&aa->addr, &bb->addr, sizeof(aa->addr));
 }
 
 void	aggregateStream(ntop_stream *stream) {
 	switch (localAggregation) {
 		case AGG_HOST:
-			stream->src.s_addr = 0x01000000;
+			setToHostAggregation(NTOP_AF(stream->proto), &stream->src);
 		case AGG_PORT:
 			stream->srcport = -1;
 	}
 	switch (remoteAggregation) {
 		case AGG_HOST:
-			stream->dst.s_addr = 0x01000000;
+			setToHostAggregation(NTOP_AF(stream->proto), &stream->dst);
 		case AGG_PORT:
 			stream->dstport = -1;
 	}
@@ -284,6 +340,7 @@ void	aggregateStream(ntop_stream *stream) {
 void	sortPacket(const ntop_packet *packet) {
 	ntop_stream	packetStream;
 	ntop_stream	*stat;
+	ntop_resolv_entry	key;
 	ntop_payload_info	payloadInfo[NTOP_PROTO_MAX];
 	totalBytes += packet->header.len;
 	totalPackets ++;
@@ -303,22 +360,26 @@ void	sortPacket(const ntop_packet *packet) {
 		if (onoffContentFiltering)
 			assignDataFilter(stat);
 		
+		memcpy(&key.addr, &packetStream.src, sizeof(key.addr));
+		key.name = NULL;
+		key.af = NTOP_AF(packetStream.proto);
 		g_mutex_lock(resolverCacheMutex);
-		rentry = g_hash_table_lookup(resolverCache, GUINT_TO_POINTER((guint)packetStream.src.s_addr));
+		rentry = g_hash_table_lookup(resolverCache, &key);
 		if (rentry == NULL) {
 			rentry = g_new0(ntop_resolv_entry, 1);
-			memcpy(&rentry->addr, &packetStream.src, sizeof(struct in_addr));
-			g_hash_table_insert(resolverCache, GUINT_TO_POINTER((guint)packetStream.src.s_addr), rentry);
+			memcpy(rentry, &key, sizeof(key));
+			g_hash_table_insert(resolverCache, rentry, rentry);
 			g_mutex_unlock(resolverCacheMutex);
 			g_thread_pool_push(resolverThreadPool, rentry, NULL);
 			g_mutex_lock(resolverCacheMutex);
 		}
 		stat->srcresolv = rentry;
-		rentry = g_hash_table_lookup(resolverCache, GUINT_TO_POINTER((guint)packetStream.dst.s_addr));
+		memcpy(&key.addr, &packetStream.dst, sizeof(key.addr));
+		rentry = g_hash_table_lookup(resolverCache, &key);
 		if (rentry == NULL) {
 			rentry = g_new0(ntop_resolv_entry, 1);
-			memcpy(&rentry->addr, &packetStream.dst, sizeof(struct in_addr));
-			g_hash_table_insert(resolverCache, GUINT_TO_POINTER((guint)packetStream.dst.s_addr), rentry);
+			memcpy(rentry, &key, sizeof(key));
+			g_hash_table_insert(resolverCache, rentry, rentry);
 			g_mutex_unlock(resolverCacheMutex);
 			g_thread_pool_push(resolverThreadPool, rentry, NULL);
 		} else {
@@ -336,14 +397,20 @@ void	sortPacket(const ntop_packet *packet) {
 		stat->dstbytes += packet->header.len;
 		stat->dstpackets ++;
 		*stat->hdstbytes += packet->header.len;
+		stat->hdstpackets[0]++;
 		stat->hdstbytessum += packet->header.len;
+		stat->hdstpacketssum++;
 		totalDstBytes += packet->header.len;
+		totalDstPackets++;
 	} else {
 		stat->srcbytes += packet->header.len;
 		stat->srcpackets ++;
 		*stat->hsrcbytes += packet->header.len;
+		stat->hsrcpackets[0]++;
 		stat->hsrcbytessum += packet->header.len;
+		stat->hsrcpacketssum++;
 		totalSrcBytes += packet->header.len;
+		totalSrcPackets++;
 	}
 	stat->totalbytes += packet->header.len;
 	stat->totalpackets ++;
@@ -369,6 +436,8 @@ void	updateBPS() {
 	uint		i;
 	guint32		srcbps = 0;
 	guint32		dstbps = 0;
+	guint32		srcpps = 0;
+	guint32		dstpps = 0;
 
 	g_get_current_time(&currentDateTime);
 	currentDateTime.tv_sec ++;
@@ -378,6 +447,7 @@ void	updateBPS() {
 		int byteswindow = ( currentDateTime.tv_sec - s->firstSeen.tv_sec );
 		if (byteswindow > HISTORY_LENGTH)
 			byteswindow = HISTORY_LENGTH;
+			
 		srcbps += (s->srcbps = s->hsrcbytessum / byteswindow);
 		s->hsrcbytessum -= s->hsrcbytes[HISTORY_LENGTH-1];
 		memmove(s->hsrcbytes+1, s->hsrcbytes, sizeof(guint)*(HISTORY_LENGTH-1));
@@ -387,6 +457,17 @@ void	updateBPS() {
 		memmove(s->hdstbytes+1, s->hdstbytes, sizeof(guint)*(HISTORY_LENGTH-1));
 		s->hdstbytes[0] = 0;
 		s->totalbps = s->srcbps + s->dstbps;
+		
+		srcpps += (s->srcpps = s->hsrcpacketssum / byteswindow);
+		s->hsrcpacketssum -= s->hsrcpackets[HISTORY_LENGTH-1];
+		memmove(s->hsrcpackets+1, s->hsrcpackets, sizeof(guint)*(HISTORY_LENGTH-1));
+		s->hsrcpackets[0] = 0;
+		dstpps += (s->dstpps = s->hdstpacketssum / byteswindow);
+		s->hdstpacketssum -= s->hdstpackets[HISTORY_LENGTH-1];
+		memmove(s->hdstpackets+1, s->hdstpackets, sizeof(guint)*(HISTORY_LENGTH-1));
+		s->hdstpackets[0] = 0;
+		s->totalpackets = s->srcpps + s->dstpps;
+		
 		if (!s->dead && currentDateTime.tv_sec - s->lastSeen.tv_sec > 10) {
 			s->dead ++;
 		}
@@ -395,6 +476,9 @@ void	updateBPS() {
 	totalSrcBPS = srcbps;
 	totalDstBPS = dstbps;
 	totalBPS = srcbps + dstbps;
+	totalSrcPPS = srcpps;
+	totalDstPPS = dstpps;
+	totalPPS = srcpps + dstpps;
 }
 
 int	activeLines=1, activeColumns=1;
@@ -417,7 +501,7 @@ void formatNumber(guint32 n, gchar *buf, int len) {
 		sprintf(buf, "ERR");
 		return;
 	}
-	sprintf(fmt, "%%%d.%df%c", ipart, fpart, suffixes[mag]);
+	sprintf(fmt, "%%%d.%df%c", ipart, fpart, !mag && onoffPackets ? 'p' : suffixes[mag]);
 	sprintf(buf, fmt, f);
 }
 
@@ -459,8 +543,9 @@ void drawScreen() {
 		{
 			int hostColumns = activeColumns - 8;
 			int windowColumns = hostColumns / 2 - 2;
+			int addrColumns = (activeColumns - 48) / 2;
 			sprintf(line0FormatString, "%%-%d.%ds %%7.7s %%7.7s %%8.8s", activeColumns-25, activeColumns-25);
-			sprintf(line1FormatString, " %%-15.15s %%5.5s %%6.6s%*c%%-15.15s %%5.5s%*c%%7.7s %%7.7s %%8.8s", windowColumns-30, ' ', windowColumns-32, ' ');
+			sprintf(line1FormatString, " %%-%d.%ds %%5.5s %%6.6s  %%-%d.%ds %%5.5s  %%7.7s %%7.7s %%8.8s", addrColumns, addrColumns, addrColumns, addrColumns);
 			sprintf(line2FormatString, "  %%-%d.%ds", activeColumns-3, activeColumns-3);
 		}
 
@@ -504,23 +589,23 @@ void drawHeader() {
 		mvprintw(0, 21, "%-10s", activeDevice->name);
 	mvprintw(0, 45, "%-29.29s", activeBPFFilterName?activeBPFFilterName:"none");
 	mvprintw(1, 13, "%s", onoffContentFiltering?"on ":"off");
-	mvprintw(1, 23, "%s", onoffBitValues?"bits/s ":"bytes/s");
+	mvprintw(1, 23, "%s", onoffPackets ? "pckt/s" : (onoffBitValues?"bits/s ":"bytes/s"));
 	mvprintw(1, 46, "%s", NTOP_AGGREGATION[localAggregation]);
 	mvprintw(1, 67, "%s", NTOP_AGGREGATION[remoteAggregation]);
 
 	attroff(A_BOLD);
 
-	formatNumber((onoffBitValues?8:1)*totalBPS, bps, 6);
+	formatNumber(onoffPackets?totalPPS:(onoffBitValues?8:1)*totalBPS, bps, 6);
 	g_strlcat(bps, "/s", sizeof(bps));
-	formatNumber((onoffBitValues?8:1)*totalSrcBPS, srcbps, 6);
+	formatNumber(onoffPackets?totalSrcPPS:(onoffBitValues?8:1)*totalSrcBPS, srcbps, 6);
 	g_strlcat(srcbps, "/s", sizeof(srcbps));
-	formatNumber((onoffBitValues?8:1)*totalDstBPS, dstbps, 6);
+	formatNumber(onoffPackets?totalDstPPS:(onoffBitValues?8:1)*totalDstBPS, dstbps, 6);
 	g_strlcat(dstbps, "/s", sizeof(dstbps));
 	mvprintw(activeLines-2, 0, line0FormatString, "TOTAL", srcbps, dstbps, bps);
 
-	formatNumber((onoffBitValues?8:1)*totalBytes, total, 6);
-	formatNumber((onoffBitValues?8:1)*totalSrcBytes, totalsrc, 6);
-	formatNumber((onoffBitValues?8:1)*totalDstBytes, totaldst, 6);
+	formatNumber(onoffPackets?totalPackets:(onoffBitValues?8:1)*totalBytes, total, 6);
+	formatNumber(onoffPackets?totalSrcPackets:(onoffBitValues?8:1)*totalSrcBytes, totalsrc, 6);
+	formatNumber(onoffPackets?totalDstPackets:(onoffBitValues?8:1)*totalDstBytes, totaldst, 6);
 	mvprintw(activeLines-1, 0, line1FormatString, "", "", "", "", "", totalsrc, totaldst, total);
 
 	mvchgat(activeLines-2, 0, activeColumns-25, A_BOLD, 0, NULL);
@@ -530,7 +615,8 @@ void drawHeader() {
 
 	attron(A_REVERSE);
 
-	mvprintw(3, 0, line0FormatString, "LOCAL <-> REMOTE", "TXBPS", "RXBPS", "TOTALBPS");
+	mvprintw(3, 0, line0FormatString, "LOCAL <-> REMOTE", onoffPackets ? "TXPPS" : "TXBPS",
+		onoffPackets ? "RXPPS" : "RXBPS", onoffPackets ? "TOTALPPS" : "TOTALBPS");
 	mvprintw(4, 0, line1FormatString, "(IP)", "PORT", "PROTO", "(IP)", "PORT", "TX", "RX", "TOTAL");
 
 	attroff(A_REVERSE);
@@ -540,15 +626,15 @@ void resolverThreadFunc(gpointer task, gpointer user_data) {
 	ntop_resolv_entry *entry = (ntop_resolv_entry *)task;
 	gchar buffer[4096];
 	struct hostent shentry, *hentry;
-	int  e, ret;
+	int  e, ret, size;
 	gchar *name;
 
 	ret = 0;
-
+	size = entry->af == AF_INET ? sizeof(struct in_addr) : sizeof(struct in6_addr);
 #if HAVE_GETHOSTBYADDR_R_8
-	ret = gethostbyaddr_r(&entry->addr, sizeof(struct in_addr), AF_INET, &shentry, buffer, 4096, &hentry, &e);
+	ret = gethostbyaddr_r(&entry->addr, size, entry->af, &shentry, buffer, 4096, &hentry, &e);
 #elif HAVE_GETHOSTBYADDR_R_7
-	hentry = gethostbyaddr_r(&entry->addr, sizeof(struct in_addr), AF_INET, &shentry, buffer, 4096, &e);
+	hentry = gethostbyaddr_r(&entry->addr, size, entry->af, &shentry, buffer, 4096, &e);
 #else
 # error "No suitable gethostbyaddr_r found by configure"
 #endif
@@ -659,30 +745,32 @@ gpointer displayThreadFunc(gpointer data) {
 		switch (displayMode) {
 		case DISPLAYMODE_NORMAL:
 			for (i=0; i<displayStreamsCount; i++) {
-				gchar srcaddr[20], dstaddr[20], srcport[10], dstport[10], srcbps[10], dstbps[10], bps[10], total[10], totalsrc[10], totaldst[10];
+				gchar srcaddr[INET6_ADDRSTRLEN + 1], dstaddr[INET6_ADDRSTRLEN + 1];
+				gchar srcport[10], dstport[10], srcbps[10], dstbps[10], bps[10];
+				gchar total[10], totalsrc[10], totaldst[10];
 				uint ibps;
 				gchar linebuffer[1024];
 				gchar *psrcaddr, *pdstaddr;
 				ntop_stream *s = displayStreams[i];
-				ibps = s->totalbps;
-				formatNumber((onoffBitValues?8:1)*ibps, bps, 6);
+				ibps = onoffPackets ? s->totalpps : s->totalbps;
+				formatNumber((onoffBitValues && onoffPackets?8:1)*ibps, bps, 6);
 				g_strlcat(bps, "/s", sizeof(bps));
-				ibps = s->srcbps;
-				formatNumber((onoffBitValues?8:1)*ibps, srcbps, 6);
+				ibps = onoffPackets ? s->srcpps : s->srcbps;
+				formatNumber((onoffBitValues && onoffPackets?8:1)*ibps, srcbps, 6);
 				g_strlcat(srcbps, "/s", sizeof(srcbps));
-				ibps = s->dstbps;
-				formatNumber((onoffBitValues?8:1)*ibps, dstbps, 6);
+				ibps = onoffPackets ? s->dstpps : s->dstbps;
+				formatNumber((onoffBitValues && onoffPackets?8:1)*ibps, dstbps, 6);
 				g_strlcat(dstbps, "/s", sizeof(dstbps));
-				formatNumber(s->totalbytes, total, 6);
-				formatNumber(s->srcbytes, totalsrc, 6);
-				formatNumber(s->dstbytes, totaldst, 6);
-				address2String(AF_INET, &s->src, srcaddr, 19);
+				formatNumber(onoffPackets ? s->totalpackets : s->totalbytes, total, 6);
+				formatNumber(onoffPackets ? s->srcpackets : s->srcbytes, totalsrc, 6);
+				formatNumber(onoffPackets ? s->dstpackets : s->dstbytes, totaldst, 6);
+				address2String(NTOP_AF(s->proto), &s->src, srcaddr, INET6_ADDRSTRLEN);
 				if (s->srcresolv == NULL || s->srcresolv->name == NULL) {
 					psrcaddr = srcaddr;
 				} else {
 					psrcaddr = s->srcresolv->name;
 				}
-				address2String(AF_INET, &s->dst, dstaddr, 19);
+				address2String(NTOP_AF(s->proto), &s->dst, dstaddr, INET6_ADDRSTRLEN);
 				if (s->dstresolv == NULL || s->dstresolv->name == NULL) {
 					pdstaddr = dstaddr;
 				} else {
@@ -747,6 +835,9 @@ gpointer displayThreadFunc(gpointer data) {
 						break;
 					case 'b':
 						onoffBitValues = !onoffBitValues;
+						break;
+					case 'p':
+						onoffPackets = !onoffPackets;
 						break;
 					case 's':
 						onoffSuspended = !onoffSuspended;
@@ -980,11 +1071,31 @@ gpointer snifferThreadFunc(gpointer data) {
 void    initDefaults() {
 	ntop_resolv_entry *entry;
 	entry = g_new0(ntop_resolv_entry, 1);
-	entry->name = "UNKNOWN";
-	g_hash_table_insert(resolverCache, GUINT_TO_POINTER(0), entry);
+	entry->name = "UNKNOWNv4";
+	entry->af = AF_INET;
+	entry->addr.addr4.s_addr = 0x0;
+	g_hash_table_insert(resolverCache, entry, entry);
 	entry = g_new0(ntop_resolv_entry, 1);
-	entry->name = "AGGREGATED";
-	g_hash_table_insert(resolverCache, GUINT_TO_POINTER(0x01000000), entry);
+	entry->name = "UNKNOWNv6";
+	entry->af = AF_INET6;
+	entry->addr.addr6.s6_addr32[0] = 0x0;
+	entry->addr.addr6.s6_addr32[1] = 0x0;
+	entry->addr.addr6.s6_addr32[2] = 0x0;
+	entry->addr.addr6.s6_addr32[3] = 0x0;
+	g_hash_table_insert(resolverCache, entry, entry);
+	entry = g_new0(ntop_resolv_entry, 1);
+	entry->name = "AGGREGATEDv4";
+	entry->af = AF_INET;
+	entry->addr.addr4.s_addr = 0x01000000;
+	g_hash_table_insert(resolverCache, entry, entry);
+	entry = g_new0(ntop_resolv_entry, 1);
+	entry->name = "AGGREGATEDv6";
+	entry->af = AF_INET6;
+	entry->addr.addr6.s6_addr32[0] = 0x0;
+	entry->addr.addr6.s6_addr32[1] = 0x0;
+	entry->addr.addr6.s6_addr32[2] = 0x0;
+	entry->addr.addr6.s6_addr32[3] = 0x01000000;
+	g_hash_table_insert(resolverCache, entry, entry);
 	configDeviceName = NULL;
 }
 

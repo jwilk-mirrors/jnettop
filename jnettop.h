@@ -48,7 +48,7 @@
 #include "sll.h"
 #include <net/if.h>
 #include <netinet/if_ether.h>
-#include <ncurses.h>
+#include <ncurses/ncurses.h>
 #include <time.h>
 #include <netdb.h>
 #include <sys/ioctl.h>
@@ -60,7 +60,7 @@
 
 typedef struct __ntop_device {
 	gchar			*name;
-	struct sockaddr		hwaddr;
+	struct sockaddr_storage	hwaddr;
 } ntop_device;
 
 typedef struct __ntop_packet {
@@ -70,8 +70,14 @@ typedef struct __ntop_packet {
 	gchar 			data[BUFSIZ];
 } ntop_packet;
 
+typedef union __ntop_mutableaddress {
+	struct in_addr addr4;
+	struct in6_addr addr6;
+} ntop_mutableaddress;
+
 typedef struct __ntop_resolv_entry {
-	struct in_addr		addr;
+	ntop_mutableaddress	addr;
+	int			af;
 	gchar  *		name;
 } ntop_resolv_entry;
 
@@ -88,8 +94,8 @@ typedef void (*FilterDataFreeFunc) (struct __ntop_stream *stream);
 
 typedef struct __ntop_stream {
 	// stream header information
-	struct in_addr		src;
-	struct in_addr		dst;
+	ntop_mutableaddress	src;
+	ntop_mutableaddress	dst;
 	guint			proto;
 	gint			srcport;
 	gint			dstport;
@@ -106,8 +112,11 @@ typedef struct __ntop_stream {
 	GTimeVal		firstSeen;
 	GTimeVal		lastSeen;
 	guint			hsrcbytes[HISTORY_LENGTH], hdstbytes[HISTORY_LENGTH];
+	guint			hsrcpackets[HISTORY_LENGTH], hdstpackets[HISTORY_LENGTH];
 	guint			hsrcbytessum, hdstbytessum;
+	guint			hsrcpacketssum, hdstpacketssum;
 	guint			srcbps, dstbps, totalbps;
+	guint			srcpps, dstpps, totalpps;
 
 	// stream state information
 	guint			dead;
@@ -143,7 +152,13 @@ typedef struct __ntop_payload_info {
 #define NTOP_PROTO_ETHER	5
 #define NTOP_PROTO_SLL		6
 #define NTOP_PROTO_AGGR		7
+#define NTOP_PROTO_IP6		8
+#define NTOP_PROTO_TCP6		9
+#define NTOP_PROTO_UDP6		10
 #define NTOP_PROTO_MAX		16
+
+#define NTOP_IS_IPV6(a)		((a) >= NTOP_PROTO_IP6 && (a) <= NTOP_PROTO_UDP6)
+#define NTOP_AF(a)		(NTOP_IS_IPV6(a) ? AF_INET6 : AF_INET)
 
 extern gchar  *NTOP_PROTOCOLS[];
 

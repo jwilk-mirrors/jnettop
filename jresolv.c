@@ -16,11 +16,12 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.8 2002-10-17 17:22:01 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.9 2004-09-29 19:09:35 merunka Exp $
  * 
  */
 
 #include "jnettop.h"
+#include <netinet/ip6.h>
 
 gboolean resolveStreamTCP(const gchar *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
 	guint	hlen;
@@ -63,8 +64,8 @@ gboolean resolveStreamIP(const gchar  *data, guint len, ntop_stream *stream, nto
 	if (hlen < sizeof(struct ip)) {
 		return FALSE;
 	}
-	memcpy(&stream->src, &ip->ip_src, sizeof(struct in_addr));
-	memcpy(&stream->dst, &ip->ip_dst, sizeof(struct in_addr));
+	memcpy(&stream->src.addr4, &ip->ip_src, sizeof(struct in_addr));
+	memcpy(&stream->dst.addr4, &ip->ip_dst, sizeof(struct in_addr));
 	stream->proto = NTOP_PROTO_IP;
 	if (len < hlen) {
 		printf("len<hlen\n");
@@ -90,6 +91,59 @@ gboolean resolveStreamIP(const gchar  *data, guint len, ntop_stream *stream, nto
 	return TRUE;
 }
 
+gboolean resolveStreamTCP6(const gchar *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+	guint	hlen;
+	const struct tcphdr *tcp = (const struct tcphdr *)data;
+	if (len < sizeof(struct tcphdr)) {
+		return FALSE;
+	}
+	hlen = TH_OFF(tcp) * 4;
+	if (hlen < sizeof(struct tcphdr)) {
+		return FALSE;
+	}
+	stream->srcport = ntohs(tcp->th_sport);
+	stream->dstport = ntohs(tcp->th_dport);
+	stream->proto = NTOP_PROTO_TCP6;
+	payloads[NTOP_PROTO_TCP6].data = data + hlen;
+	payloads[NTOP_PROTO_TCP6].len = len - hlen;
+	return TRUE;
+}
+
+gboolean resolveStreamUDP6(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+	const struct udphdr *udp = (const struct udphdr *)data;
+	if (len < sizeof(struct udphdr)) {
+		return FALSE;
+	}
+	stream->srcport = ntohs(udp->uh_sport);
+	stream->dstport = ntohs(udp->uh_dport);
+	stream->proto = NTOP_PROTO_UDP6;
+	payloads[NTOP_PROTO_UDP6].data = data + sizeof(struct udphdr);
+	payloads[NTOP_PROTO_UDP6].len = len - sizeof(struct udphdr);
+	return TRUE;
+}
+
+gboolean resolveStreamIP6(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+	const struct ip6_hdr	*ip = (const struct ip6_hdr *)data;
+	if (len < sizeof(struct ip6_hdr)) {
+		return FALSE;
+	}
+	memcpy(&stream->src.addr6, &ip->ip6_src, sizeof(struct in6_addr));
+	memcpy(&stream->dst.addr6, &ip->ip6_dst, sizeof(struct in6_addr));
+	stream->proto = NTOP_PROTO_IP6;
+	data += sizeof(struct ip6_hdr);
+	len -= sizeof(struct ip6_hdr);
+	payloads[NTOP_PROTO_IP6].data = data;
+	payloads[NTOP_PROTO_IP6].len = len;
+	/* TODO: traverse and check all IPv6 headers */
+	switch (ip->ip6_nxt) {
+		case IPPROTO_TCP:
+			return resolveStreamTCP6(data, len, stream, payloads);
+		case IPPROTO_UDP:
+			return resolveStreamUDP6(data, len, stream, payloads);
+	}
+	return TRUE;
+}
+
 gboolean resolveStreamARP(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
 	stream->proto = NTOP_PROTO_ARP;
 	return TRUE;
@@ -101,9 +155,9 @@ gboolean resolveStreamEther(const ntop_packet *packet, const gchar  *data, guint
 	} else
 	{
 		guint16 proto = ntohs(((struct ntop_ether_header*)data)->ether_type);
-		if (!memcmp( &((struct ntop_ether_header *)data)->ether_shost, &packet->device->hwaddr.sa_data, 6)) {
+		if (!memcmp( &((struct ntop_ether_header *)data)->ether_shost, &((struct sockaddr *)&packet->device->hwaddr)->sa_data, 6)) {
 			stream->rxtx = RXTX_TX;
-		} else if (!memcmp( &((struct ntop_ether_header *)data)->ether_dhost, &packet->device->hwaddr.sa_data, 6)) {
+		} else if (!memcmp( &((struct ntop_ether_header *)data)->ether_dhost, &((struct sockaddr *)&packet->device->hwaddr)->sa_data, 6)) {
 			stream->rxtx = RXTX_RX;
 		}
 
@@ -119,6 +173,8 @@ gboolean resolveStreamEther(const ntop_packet *packet, const gchar  *data, guint
 		case ETHERTYPE_ARP:
 			return resolveStreamARP(data, len, stream, payloads);
 			break;
+		case ETHERTYPE_IPV6:
+			return resolveStreamIP6(data, len, stream, payloads);
 		default:
 			debug("Unknown ETHERNET protocol: %d\n", proto);
 			return FALSE;
@@ -202,11 +258,11 @@ gboolean resolveStream(const ntop_packet *packet, ntop_stream *stream, ntop_payl
 		cmpres = cmpres || (stream->srcport > stream->dstport);
 	}
 	if (cmpres > 0) {
-		struct in_addr	addr;
+		struct in6_addr	addr;
 		gushort		port;
-		memcpy(&addr, &stream->src, sizeof(struct in_addr));
-		memcpy(&stream->src, &stream->dst, sizeof(struct in_addr));
-		memcpy(&stream->dst, &addr, sizeof(struct in_addr));
+		memcpy(&addr, &stream->src, sizeof(struct in6_addr));
+		memcpy(&stream->src, &stream->dst, sizeof(struct in6_addr));
+		memcpy(&stream->dst, &addr, sizeof(struct in6_addr));
 		port = stream->srcport;
 		stream->srcport = stream->dstport;
 		stream->dstport = port;
