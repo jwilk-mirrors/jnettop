@@ -1,8 +1,8 @@
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.spec,v 1.4 2002-09-02 15:32:05 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.spec,v 1.5 2002-09-03 21:20:37 merunka Exp $
 
 Summary: Network traffic tracker
 Name: jnettop
-Version: 0.4
+Version: 0.5
 Release: 1
 Group: Network/Monitoring
 License: GNU
@@ -37,6 +37,9 @@ rm -r $RPM_BUILD_ROOT
 %doc AUTHORS ChangeLog COPYING INSTALL NEWS README
 
 %changelog
+* Tue Sep 03 2002 Jakub Skopal <j@kubs.cz> 0.5-1
+- transition to release 0.5, see ChangeLog
+
 * Mon Sep 02 2002 Jakub Skopal <j@kubs.cz> 0.4-1
 - transition to release 0.4, see ChangeLog
 

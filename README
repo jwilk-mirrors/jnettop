@@ -1,4 +1,4 @@
-This is jnettop 0.4.
+This is jnettop 0.5.
 It's a package, which should do simmilar job for network as top does for
 processes.
 
@@ -79,5 +79,16 @@ Copyright (C) 2002 Jakub Skopal
 Portions of the package are taken from the tcpdump project and their rights are
 held by their respective owners stated in the beginning of the files.
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/README,v 1.5 2002-08-31 17:15:03 merunka Exp $
+-- 100% CPU usage --
+
+  (Why does jnettop consume all CPU time?)
+
+Libpcap's features don't include reading a packet with timeout. On some systems
+this can be overcomed by using select() call. On others, we loop between non-
+blocking read and thread_yeald() function (notably BSD). On these systems (BSD)
+jnettop consumes all available CPU time, but should behave nicely, so that
+it consumes all time up to 100%. Other processes should have theire appropriate
+time. This behaviour does not include Linux
+
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/README,v 1.6 2002-09-03 21:20:36 merunka Exp $
 
