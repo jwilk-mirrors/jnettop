@@ -19,8 +19,6 @@
  */
 
 #include "config.h"
-#include <pcap.h>
-#include <glib.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #if HAVE_STRING_H
@@ -34,6 +32,8 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <pcap.h>
+#include <glib.h>
 #include "ether.h"
 #include "ethertype.h"
 #include "ip.h"
