@@ -12,6 +12,33 @@ I hope, somebody out there will find this tool usefull too.
 Just in case you wanted to write me any comments, hints, postcards, herritage
 announcements, love, wish, abuse etc., feel free to use my email, j@kubs.cz.
 
+-- Aggregation --
+
+  (What is it?)
+
+Aggregation is a way, how to modify packet classicication rules. There are
+two types of aggregation in jnettop: host and port. If there is port
+aggregation enabled, it means, that all packets seem to come(go to) same port
+numbers. If there is host aggregation enabled, it means, that all packets
+seem to come(go to) same host. Let's have an example:
+Suppose we have following configuration:
+
+                                                             +--- host0
+  internet ----- addr1 (eth0) --- router --- addr2 (eth1) ---+--- host1
+                                                             +--- host2
+
+i.e. typical border router with eth0 interface looking into internet and
+eth1 interface looking to intranet. Suppose we're running jnettop on router
+sniffing on interface eth0. To see how many bytes every host consumes out
+of the internet connection, we enable remote host aggregation and local port
+aggregation. i.e. All internet will behave as one endpoint and all programs
+on one host will, too, behave as one endpoint. This way, every stream we see
+in jnettop will be from one of the hosts in intranet to a public internet.
+Aggregation is very powerfull laser-knife in network traffic analysis.
+I understand, that it is not very user friendly implementation in jnettop and
+I will gratefully welcome every suggestion on how to make this topic clear and
+more clear-to-use.
+
 -- .jnettop configuration file --
 
   (How can I configure packet filters that apply prior to processing
@@ -130,5 +157,5 @@ jnettop consumes all available CPU time, but should behave nicely, so that
 it consumes all time up to 100%. Other processes should have theire appropriate
 time. This behaviour does not include Linux
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/README,v 1.8 2002-10-16 20:06:30 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/README,v 1.9 2002-10-17 17:22:01 merunka Exp $
 

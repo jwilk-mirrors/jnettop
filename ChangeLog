@@ -1,7 +1,12 @@
 2002-10-17	Jakub Skopal	<j@kubs.cz>
 
  * implemented -x command line parameter. You are now able to
-   specify custom filter right on the command line
+   specify custom filter right on the command line. Thanks again
+   go to Martynas Bieliauskas
+ * implemented aggregation
+ * Somewhat cleared the display and made it (hopefully) more
+   readable
+ * implemented rx/tx recognition
 
 2002-10-16	Jakub Skopal	<j@kubs.cz>
 
@@ -65,4 +70,4 @@
 
  * initial release
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.15 2002-10-17 10:47:05 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.16 2002-10-17 17:22:01 merunka Exp $

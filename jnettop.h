@@ -51,6 +51,7 @@
 #include <ncurses.h>
 #include <time.h>
 #include <netdb.h>
+#include <sys/ioctl.h>
 
 #define HISTORY_LENGTH			5
 #define FREEPACKETSTACK_PEEK		50
@@ -58,10 +59,12 @@
 #define FILTER_DATA_STRING_LENGTH_S	"255"
 
 typedef struct __ntop_device {
-	gchar	*name;
+	gchar			*name;
+	struct sockaddr		hwaddr;
 } ntop_device;
 
 typedef struct __ntop_packet {
+	struct __ntop_device	* device;
 	struct pcap_pkthdr	header;
 	guint			dataLink;
 	gchar 			data[BUFSIZ];
@@ -76,6 +79,10 @@ struct __ntop_stream;
 struct __ntop_payload_info;
 struct __ntop_packet;
 
+#define	RXTX_RX		1
+#define	RXTX_UNKNOWN	0
+#define	RXTX_TX		-1
+
 typedef void (*FilterDataFunc) (struct __ntop_stream *stream, const struct __ntop_packet *packet, gboolean direction, const struct __ntop_payload_info *pi);
 typedef void (*FilterDataFreeFunc) (struct __ntop_stream *stream);
 
@@ -84,22 +91,23 @@ typedef struct __ntop_stream {
 	struct in_addr		src;
 	struct in_addr		dst;
 	guint			proto;
-	gushort			srcport;
-	gushort			dstport;
+	gint			srcport;
+	gint			dstport;
 	struct __ntop_resolv_entry	*srcresolv;
 	struct __ntop_resolv_entry	*dstresolv;
 
 	// stream classification data
 	gboolean		direction;
+	int			rxtx;
 
 	// stream statistics information
 	guint32			srcbytes, dstbytes, totalbytes;
 	guint32			srcpackets, dstpackets, totalpackets;
 	GTimeVal		firstSeen;
 	GTimeVal		lastSeen;
-	guint			hbytes[HISTORY_LENGTH];
-	guint			hbytessum;
-	guint			bps;
+	guint			hsrcbytes[HISTORY_LENGTH], hdstbytes[HISTORY_LENGTH];
+	guint			hsrcbytessum, hdstbytessum;
+	guint			srcbps, dstbps, totalbps;
 
 	// stream state information
 	guint			dead;
@@ -134,6 +142,7 @@ typedef struct __ntop_payload_info {
 #define	NTOP_PROTO_ARP		4
 #define NTOP_PROTO_ETHER	5
 #define NTOP_PROTO_SLL		6
+#define NTOP_PROTO_AGGR		7
 #define NTOP_PROTO_MAX		16
 
 extern gchar  *NTOP_PROTOCOLS[];
@@ -146,4 +155,8 @@ void		assignDataFilter(ntop_stream *stream);
 
 // forward declaration of jnettop exports
 void		debug(const char *format, ...);
+
+#define AGG_NONE		0
+#define AGG_PORT		1
+#define AGG_HOST		2
 

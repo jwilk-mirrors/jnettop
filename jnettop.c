@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.17 2002-10-17 10:47:05 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.18 2002-10-17 17:22:01 merunka Exp $
  *
  */
 
@@ -34,7 +34,8 @@
 # define USE_SELECT
 #endif
 
-gchar 	*NTOP_PROTOCOLS[] = { "UNK.", "IP", "TCP", "UDP", "ARP", "ETHER", "SLL" };
+gchar 	*NTOP_PROTOCOLS[] = { "UNK.", "IP", "TCP", "UDP", "ARP", "ETHER", "SLL", "AGGR." };
+gchar 	*NTOP_AGGREGATION[] = { "none", "port", "host" };
 
 char		pcap_errbuf[PCAP_ERRBUF_SIZE];
 
@@ -80,9 +81,9 @@ GThreadPool	*resolverThreadPool;
 GTimeVal	startTime;
 GTimeVal	historyTime;
 
-guint32		totalBytes;
+guint32		totalSrcBytes, totalDstBytes, totalBytes;
 guint32		totalPackets;
-guint32		totalBPS;
+guint32		totalSrcBPS, totalDstBPS, totalBPS;
 
 GMutex		*displayStreamsMutex;
 ntop_stream	**displayStreams;
@@ -102,6 +103,9 @@ int		displayMode = DISPLAYMODE_NORMAL;
 
 WINDOW		*listWindow;
 
+guint		localAggregation;
+guint		remoteAggregation;
+
 const char * validateBPFFilter(char *filter) {
 	const char *ret = NULL;
 	struct bpf_program program;
@@ -117,6 +121,10 @@ const char * validateBPFFilter(char *filter) {
 }
 
 const char * address2String(int af, const void *src, char *dst, size_t cnt) {
+	if (((struct in_addr *)src)->s_addr == 0x01000000) {
+		*dst = '\0';
+		return dst;
+	}
 #if HAVE_INET_NTOP
 	return inet_ntop(af, src, dst, cnt);
 #elif HAVE_INET_NTOA
@@ -175,7 +183,7 @@ void lookupDevices() {
 		devices_count ++;
 		t = t->next;
 	}
-	devices = g_new(ntop_device, devices_count);
+	devices = g_new0(ntop_device, devices_count);
 	t = head;
 	i = 0;
 	while (t) {
@@ -194,6 +202,28 @@ void lookupDevices() {
 	}
 	devices[0].name = g_strndup((gchar*)name, strlen(name));
 #endif
+}
+
+void checkDevices() {
+	struct ifreq ifr;
+	int s,i;
+
+	memset(&ifr, 0, sizeof(struct ifreq));
+	s = socket(PF_INET, SOCK_DGRAM, 0);
+	if (s==-1) {
+		fprintf(stderr, "Could not open datagram socket used to discover HW addresses of interfaces: %s\n", strerror(errno));
+		exit(1);
+	}
+	for (i=0; i<devices_count; i++) {
+		strncpy(ifr.ifr_name, devices[i].name, IFNAMSIZ);
+		ifr.ifr_hwaddr.sa_family = AF_UNSPEC;
+		if (ioctl(s, SIOCGIFHWADDR, &ifr) == -1) {
+			fprintf(stderr, "Could not get HW address of interface %s: %s\n", devices[i].name, strerror(errno));
+		} else {
+			memcpy(&devices[i].hwaddr, &ifr.ifr_hwaddr, sizeof(struct sockaddr));
+		}
+	}
+	close(s);
 }
 	
 guint hashStream(gconstpointer key) {
@@ -220,9 +250,9 @@ gboolean compareStream(gconstpointer a, gconstpointer b) {
 gint compareStreamByStat(gconstpointer a, gconstpointer b) {
 	const ntop_stream	*astr = *(const ntop_stream **)a;
 	const ntop_stream	*bstr = *(const ntop_stream **)b;
-	if (astr->bps > bstr->bps)
+	if (astr->totalbps > bstr->totalbps)
 		return -1;
-	else if (astr->bps == bstr->bps)
+	else if (astr->totalbps == bstr->totalbps)
 		return 0;
 	return 1;
 }
@@ -235,6 +265,21 @@ gboolean compareResolvEntry(gconstpointer a, gconstpointer b) {
 	return a == b;
 }
 
+void	aggregateStream(ntop_stream *stream) {
+	switch (localAggregation) {
+		case AGG_HOST:
+			stream->src.s_addr = 0x01000000;
+		case AGG_PORT:
+			stream->srcport = -1;
+	}
+	switch (remoteAggregation) {
+		case AGG_HOST:
+			stream->dst.s_addr = 0x01000000;
+		case AGG_PORT:
+			stream->dstport = -1;
+	}
+}
+
 void	sortPacket(const ntop_packet *packet) {
 	ntop_stream	packetStream;
 	ntop_stream	*stat;
@@ -243,6 +288,7 @@ void	sortPacket(const ntop_packet *packet) {
 	totalPackets ++;
 	memset(&packetStream, 0, sizeof(ntop_stream));
 	resolveStream(packet, &packetStream, payloadInfo);
+	aggregateStream(&packetStream);
 	g_mutex_lock(streamTableMutex);
 	stat = (ntop_stream *)g_hash_table_lookup(streamTable, &packetStream);
 	if (stat == NULL) {
@@ -288,14 +334,18 @@ void	sortPacket(const ntop_packet *packet) {
 	if (packetStream.direction) {
 		stat->dstbytes += packet->header.len;
 		stat->dstpackets ++;
+		*stat->hdstbytes += packet->header.len;
+		stat->hdstbytessum += packet->header.len;
+		totalDstBytes += packet->header.len;
 	} else {
 		stat->srcbytes += packet->header.len;
 		stat->srcpackets ++;
+		*stat->hsrcbytes += packet->header.len;
+		stat->hsrcbytessum += packet->header.len;
+		totalSrcBytes += packet->header.len;
 	}
 	stat->totalbytes += packet->header.len;
 	stat->totalpackets ++;
-	*stat->hbytes += packet->header.len;
-	stat->hbytessum += packet->header.len;
 	g_get_current_time(&stat->lastSeen);
 
 	if (onoffContentFiltering && stat->filterDataFunc) {
@@ -303,10 +353,21 @@ void	sortPacket(const ntop_packet *packet) {
 	}
 }
 
+void	markAllAsDead() {
+	int i;
+	g_mutex_lock(streamArrayMutex);
+	for (i=0; i<streamArray->len; i++) {
+		ntop_stream *s = (ntop_stream *)g_ptr_array_index(streamArray, i);
+		s->dead=6;
+	}
+	g_mutex_unlock(streamArrayMutex);
+}
+
 void	updateBPS() {
 	GTimeVal	currentDateTime;
 	uint		i;
-	guint32		bps = 0;
+	guint32		srcbps = 0;
+	guint32		dstbps = 0;
 
 	g_get_current_time(&currentDateTime);
 	currentDateTime.tv_sec ++;
@@ -316,16 +377,23 @@ void	updateBPS() {
 		int byteswindow = ( currentDateTime.tv_sec - s->firstSeen.tv_sec );
 		if (byteswindow > HISTORY_LENGTH)
 			byteswindow = HISTORY_LENGTH;
-		bps += (s->bps = s->hbytessum / byteswindow);
-		s->hbytessum -= s->hbytes[HISTORY_LENGTH-1];
-		memmove(s->hbytes+1, s->hbytes, sizeof(guint)*(HISTORY_LENGTH-1));
-		s->hbytes[0] = 0;
+		srcbps += (s->srcbps = s->hsrcbytessum / byteswindow);
+		s->hsrcbytessum -= s->hsrcbytes[HISTORY_LENGTH-1];
+		memmove(s->hsrcbytes+1, s->hsrcbytes, sizeof(guint)*(HISTORY_LENGTH-1));
+		s->hsrcbytes[0] = 0;
+		dstbps += (s->dstbps = s->hdstbytessum / byteswindow);
+		s->hdstbytessum -= s->hdstbytes[HISTORY_LENGTH-1];
+		memmove(s->hdstbytes+1, s->hdstbytes, sizeof(guint)*(HISTORY_LENGTH-1));
+		s->hdstbytes[0] = 0;
+		s->totalbps = s->srcbps + s->dstbps;
 		if (!s->dead && currentDateTime.tv_sec - s->lastSeen.tv_sec > 10) {
 			s->dead ++;
 		}
 	}
 
-	totalBPS = bps;
+	totalSrcBPS = srcbps;
+	totalDstBPS = dstbps;
+	totalBPS = srcbps + dstbps;
 }
 
 int	activeLines=1, activeColumns=1;
@@ -378,8 +446,8 @@ void drawScreen() {
 
 		attrset(A_NORMAL);
 
-		mvprintw(0, 0, "time XX:XX:XX run XXX:XX:XX device XXXXXXXXXX bytes XXXXXXX pkts XXXXXXXXX");
-		mvprintw(1, 0, "pkt [f]ilter: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX  bps XXXXXXX@ strs XXXXXXXXX");
+		mvprintw(0, 0, "run XXX:XX:XX device XXXXXXXXXX pkt[f]ilter: XXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
+		mvprintw(1, 0, "[c]ntfilter: XXX [b]ps=XXXXXXX [l]ocal aggr.: XXXX [r]emote aggr.: XXXX   ");
 #if HAVE_PCAP_FINDALLDEVS
 		if (devices_count>1) {
 			mvprintw(2, 10, "[0]-[9] switch device");
@@ -390,19 +458,19 @@ void drawScreen() {
 		{
 			int hostColumns = activeColumns - 8;
 			int windowColumns = hostColumns / 2 - 2;
-			sprintf(line0FormatString, "%%-%d.%ds %*c%%8s", windowColumns*2+1, windowColumns*2+1, hostColumns-2*windowColumns-2, ' ');
-			sprintf(line1FormatString, " %%-15.15s %%5.5s %%6.6s%*c%%-15.15s %%5.5s%*c%%6.6s %%6.6s %%%d.%ds", windowColumns-30, ' ', windowColumns-30, ' ',activeColumns-2*windowColumns-4, activeColumns-2*windowColumns-4);
+			sprintf(line0FormatString, "%%-%d.%ds %%7.7s %%7.7s %%8.8s", activeColumns-25, activeColumns-25);
+			sprintf(line1FormatString, " %%-15.15s %%5.5s %%6.6s%*c%%-15.15s %%5.5s%*c%%7.7s %%7.7s %%8.8s", windowColumns-30, ' ', windowColumns-32, ' ');
 			sprintf(line2FormatString, "  %%-%d.%ds", activeColumns-3, activeColumns-3);
 		}
 
 		if (listWindow) {
 			delwin(listWindow);
 		}
-		listWindow = newwin(activeLines-5, activeColumns, 5, 0);
+		listWindow = newwin(activeLines-8, activeColumns, 5, 0);
 	}
 	g_mutex_lock(statusMutex);
 	if (statusMessage == NULL) {
-		mvprintw(2, 0, "[q]uit [h]elp                      [c]ontent filtering: XXX [b]ps=XXXXXXX ");
+		mvprintw(2, 0, "[q]uit [h]elp [s]orting");
 	} else {
 		GTimeVal tv;
 		attron(A_BOLD);
@@ -421,36 +489,48 @@ void drawScreen() {
 void drawHeader() {
 	GTimeVal	currentTime;
 	gchar		timeBuffer[32];
+	gchar srcbps[10], dstbps[10], bps[10], total[10], totalsrc[10], totaldst[10];
+	int i;
 	struct tm tm;
 
 	attron(A_BOLD);
 	
 	g_get_current_time(&currentTime);
 	localtime_r(&currentTime.tv_sec, &tm);
-	strftime(timeBuffer, 31, "%H:%M:%S", &tm);
-	mvprintw(0, 5, "%s", timeBuffer);
 	sprintf(timeBuffer, "%3d:%02d:%02d", (int)((currentTime.tv_sec-startTime.tv_sec)/3600), (int)((currentTime.tv_sec-startTime.tv_sec)%3600/60), (int)((currentTime.tv_sec-startTime.tv_sec)%60));
-	mvprintw(0, 18, "%s", timeBuffer);
+	mvprintw(0, 4, "%s", timeBuffer);
 	if (activeDevice)
-		mvprintw(0, 35, "%-10s", activeDevice->name);
-	formatNumber(totalBytes, timeBuffer, 7);
-	mvprintw(0, 52, "%7s", timeBuffer);
-	mvprintw(0, 65, "%9d", totalPackets);
-	mvprintw(1, 65, "%9d", streamArray->len);
-	formatNumber((onoffBitValues?8:1)*totalBPS, timeBuffer, 6);
-	mvprintw(1, 51, "%6s/s", timeBuffer);
-	mvprintw(1, 14, "%-31.31s", activeBPFFilterName?activeBPFFilterName:"none");
-	if (!statusMessage) {
-		mvprintw(2, 56, "%s", onoffContentFiltering?"on ":"off");
-		mvprintw(2, 66, "%s", onoffBitValues?"bits/s ":"bytes/s");
-	}
+		mvprintw(0, 21, "%-10s", activeDevice->name);
+	mvprintw(0, 45, "%-29.29s", activeBPFFilterName?activeBPFFilterName:"none");
+	mvprintw(1, 13, "%s", onoffContentFiltering?"on ":"off");
+	mvprintw(1, 23, "%s", onoffBitValues?"bits/s ":"bytes/s");
+	mvprintw(1, 46, "%s", NTOP_AGGREGATION[localAggregation]);
+	mvprintw(1, 67, "%s", NTOP_AGGREGATION[remoteAggregation]);
 
 	attroff(A_BOLD);
-	
+
+	formatNumber((onoffBitValues?8:1)*totalBPS, bps, 6);
+	g_strlcat(bps, "/s", sizeof(bps));
+	formatNumber((onoffBitValues?8:1)*totalSrcBPS, srcbps, 6);
+	g_strlcat(srcbps, "/s", sizeof(srcbps));
+	formatNumber((onoffBitValues?8:1)*totalDstBPS, dstbps, 6);
+	g_strlcat(dstbps, "/s", sizeof(dstbps));
+	mvprintw(activeLines-2, 0, line0FormatString, "TOTAL", srcbps, dstbps, bps);
+
+	formatNumber((onoffBitValues?8:1)*totalBytes, total, 6);
+	formatNumber((onoffBitValues?8:1)*totalSrcBytes, totalsrc, 6);
+	formatNumber((onoffBitValues?8:1)*totalDstBytes, totaldst, 6);
+	mvprintw(activeLines-1, 0, line1FormatString, "", "", "", "", "", totalsrc, totaldst, total);
+
+	mvchgat(activeLines-2, 0, activeColumns-25, A_BOLD, 0, NULL);
+
+	for (i=0; i<activeColumns; i++)
+		mvaddch(activeLines-3, i, ACS_HLINE);
+
 	attron(A_REVERSE);
 
-	mvprintw(3, 0, line0FormatString, "HOSTS", "BPS");
-	mvprintw(4, 0, line1FormatString, "(IP)", "PORT", "PROTO", "(IP)", "PORT", "->", "<-", "TOTAL");
+	mvprintw(3, 0, line0FormatString, "LOCAL <-> REMOTE", "TXBPS", "RXBPS", "TOTALBPS");
+	mvprintw(4, 0, line1FormatString, "(IP)", "PORT", "PROTO", "(IP)", "PORT", "TX", "RX", "TOTAL");
 
 	attroff(A_REVERSE);
 }
@@ -484,7 +564,7 @@ gpointer sorterThreadFunc(gpointer data) {
 		ntop_stream	**streams,**oldStreams;
 		GTimeVal	t;
 
-		lines = (activeLines - 5) / 3;
+		lines = (activeLines - 8) / 3;
 
 		streams = g_new0(ntop_stream *, lines);
 		
@@ -523,7 +603,7 @@ gpointer sorterThreadFunc(gpointer data) {
 
 		for (i=0; i<streamArray->len; i++) {
 			ntop_stream *s = (ntop_stream *)g_ptr_array_index(streamArray, i);
-			if (s->dead && ++s->dead > 6 && !s->displayed) {
+			if (s->dead && ++s->dead > 7 && !s->displayed) {
 				g_ptr_array_remove_index_fast ( streamArray, i );
 				g_hash_table_remove ( streamTable, s );
 				freeStream(s);
@@ -575,13 +655,20 @@ gpointer displayThreadFunc(gpointer data) {
 		switch (displayMode) {
 		case DISPLAYMODE_NORMAL:
 			for (i=0; i<displayStreamsCount; i++) {
-				gchar srcaddr[20], dstaddr[20], srcport[10], dstport[10], bps[10], total[10], totalsrc[10], totaldst[10];
+				gchar srcaddr[20], dstaddr[20], srcport[10], dstport[10], srcbps[10], dstbps[10], bps[10], total[10], totalsrc[10], totaldst[10];
+				uint ibps;
 				gchar linebuffer[1024];
 				gchar *psrcaddr, *pdstaddr;
 				ntop_stream *s = displayStreams[i];
-				uint ibps = s->bps;
+				ibps = s->totalbps;
 				formatNumber((onoffBitValues?8:1)*ibps, bps, 6);
 				g_strlcat(bps, "/s", sizeof(bps));
+				ibps = s->srcbps;
+				formatNumber((onoffBitValues?8:1)*ibps, srcbps, 6);
+				g_strlcat(srcbps, "/s", sizeof(srcbps));
+				ibps = s->dstbps;
+				formatNumber((onoffBitValues?8:1)*ibps, dstbps, 6);
+				g_strlcat(dstbps, "/s", sizeof(dstbps));
 				formatNumber(s->totalbytes, total, 6);
 				formatNumber(s->srcbytes, totalsrc, 6);
 				formatNumber(s->dstbytes, totaldst, 6);
@@ -597,11 +684,17 @@ gpointer displayThreadFunc(gpointer data) {
 				} else {
 					pdstaddr = s->dstresolv->name;
 				}
-				sprintf(srcport, "%d", s->srcport);
-				sprintf(dstport, "%d", s->dstport);
+				if (s->srcport == -1)
+					strcpy(srcport, "AGGR.");
+				else
+					sprintf(srcport, "%d", s->srcport);
+				if (s->dstport == -1)
+					strcpy(dstport, "AGGR.");
+				else
+					sprintf(dstport, "%d", s->dstport);
 				sprintf(linebuffer, "%s <-> %s", psrcaddr, pdstaddr);
-				mvwprintw(listWindow, i*3, 0, line0FormatString, linebuffer, bps);
-				mvwchgat(listWindow, i*3, 0, activeColumns-8, A_BOLD, 0, NULL);
+				mvwprintw(listWindow, i*3, 0, line0FormatString, linebuffer, srcbps, dstbps, bps);
+				mvwchgat(listWindow, i*3, 0, activeColumns-25, A_BOLD, 0, NULL);
 				mvwprintw(listWindow, i*3+1, 0, line1FormatString, srcaddr, srcport, NTOP_PROTOCOLS[s->proto], dstaddr, dstport, totalsrc, totaldst, total);
 				mvwprintw(listWindow, i*3+2, 0, line2FormatString, s->filterDataString);
 			}
@@ -661,6 +754,14 @@ gpointer displayThreadFunc(gpointer data) {
 						break;
 					case 'h':
 						displayMode = DISPLAYMODE_HELP;
+						break;
+					case 'l':
+						markAllAsDead();
+						localAggregation = (localAggregation + 1) % 3;
+						break;
+					case 'r':
+						markAllAsDead();
+						remoteAggregation = (remoteAggregation + 1) % 3;
 						break;
 					case '0':
 					case '1':
@@ -772,6 +873,7 @@ int		deviceDataLink;
 void     dispatch_callback(const u_char *udata, const struct pcap_pkthdr *hdr, const guchar *pcappacket) {
 	ntop_packet * packet;
 	packet = allocNtopPacket();
+	packet->device = activeDevice;
 	packet->dataLink = deviceDataLink;
 	memcpy(&(packet->header), hdr, sizeof(struct pcap_pkthdr));
 	if (packet->header.caplen > BUFSIZ)
@@ -874,6 +976,9 @@ void    initDefaults() {
 	entry = g_new0(ntop_resolv_entry, 1);
 	entry->name = "UNKNOWN";
 	g_hash_table_insert(resolverCache, GUINT_TO_POINTER(0), entry);
+	entry = g_new0(ntop_resolv_entry, 1);
+	entry->name = "AGGREGATED";
+	g_hash_table_insert(resolverCache, GUINT_TO_POINTER(0x01000000), entry);
 }
 
 void	readConfig() {
@@ -1047,7 +1152,7 @@ int main(int argc, char ** argv) {
 			continue;
 		}
 		if (!strcmp(argv[a], "-x") || !strcmp(argv[a], "--filter")) {
-			char *ret;
+			const char *ret;
 			if (a+1>=argc) {
 				fprintf(stderr, "%s switch requires argument\n", argv[a]);
 				exit(255);
@@ -1071,6 +1176,7 @@ int main(int argc, char ** argv) {
 	} else {
 		lookupDevices();
 	}
+	checkDevices();
 
 	if (!devices_count) {
 		fprintf(stderr, "Autodiscovery found no devices. Specify device you want to watch with -i parameter\n");
@@ -1124,7 +1230,11 @@ int main(int argc, char ** argv) {
 
 		g_get_current_time(&startTime);
 		totalBytes = 0;
+		totalSrcBytes = 0;
+		totalDstBytes = 0;
 		totalPackets = 0;
+		totalSrcBPS = 0;
+		totalDstBPS = 0;
 		totalBPS = 0;
 
 		activeLines = 0;

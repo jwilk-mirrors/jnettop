@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.7 2002-10-16 20:02:51 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.8 2002-10-17 17:22:01 merunka Exp $
  * 
  */
 
@@ -95,12 +95,18 @@ gboolean resolveStreamARP(const gchar  *data, guint len, ntop_stream *stream, nt
 	return TRUE;
 }
 
-gboolean resolveStreamEther(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+gboolean resolveStreamEther(const ntop_packet *packet, const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
 	if (len<NTOP_ETHER_HDRLEN) {
 		return FALSE;
 	} else
 	{
 		guint16 proto = ntohs(((struct ntop_ether_header*)data)->ether_type);
+		if (!memcmp( &((struct ntop_ether_header *)data)->ether_shost, &packet->device->hwaddr.sa_data, 6)) {
+			stream->rxtx = RXTX_TX;
+		} else if (!memcmp( &((struct ntop_ether_header *)data)->ether_dhost, &packet->device->hwaddr.sa_data, 6)) {
+			stream->rxtx = RXTX_RX;
+		}
+
 		data += NTOP_ETHER_HDRLEN;
 		len -= NTOP_ETHER_HDRLEN;
 		stream->proto = NTOP_PROTO_ETHER;
@@ -122,12 +128,21 @@ gboolean resolveStreamEther(const gchar  *data, guint len, ntop_stream *stream, 
 }
 
 #ifdef linux
-gboolean resolveStreamSLL(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+gboolean resolveStreamSLL(const ntop_packet *packet, const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
 	if (len<SLL_HDR_LEN) {
 		return FALSE;
 	} else
 	{
 		guint16 proto = ntohs(((struct sll_header*)data)->sll_protocol);
+		guint16 pkttype = ntohs(((struct sll_header*)data)->sll_pkttype);
+		switch (pkttype) {
+			case LINUX_SLL_HOST:
+				stream->rxtx = RXTX_RX;
+				break;
+			case LINUX_SLL_OUTGOING:
+				stream->rxtx = RXTX_TX;
+				break;
+		}
 		data += SLL_HDR_LEN;
 		len -= SLL_HDR_LEN;
 		stream->proto = NTOP_PROTO_SLL;
@@ -135,7 +150,7 @@ gboolean resolveStreamSLL(const gchar  *data, guint len, ntop_stream *stream, nt
 		payloads[NTOP_PROTO_SLL].len = len;
 		switch (proto) {
 		case ETH_P_802_2:
-			return resolveStreamEther(data, len, stream, payloads);
+			return resolveStreamEther(packet, data, len, stream, payloads);
 			break;
 		case ETH_P_ARP:
 			return resolveStreamARP(data, len, stream, payloads);
@@ -165,12 +180,12 @@ gboolean resolveStream(const ntop_packet *packet, ntop_stream *stream, ntop_payl
 
 	switch (packet->dataLink) {
 	case DLT_EN10MB:
-		result = resolveStreamEther(data, len, stream, payloads);
+		result = resolveStreamEther(packet, data, len, stream, payloads);
 		break;
 #ifdef linux
 #ifdef DLT_LINUX_SLL
 	case DLT_LINUX_SLL:
-		result = resolveStreamSLL(data, len, stream, payloads);
+		result = resolveStreamSLL(packet, data, len, stream, payloads);
 		break;
 #endif
 #endif
@@ -179,8 +194,14 @@ gboolean resolveStream(const ntop_packet *packet, ntop_stream *stream, ntop_payl
 		return FALSE;
 		break;
 	}
-	cmpres = memcmp(&stream->src, &stream->dst, sizeof(struct in_addr));
-	if (cmpres > 0 || (cmpres == 0 && stream->srcport > stream->dstport)) {
+	cmpres = 0;
+	if (stream->rxtx != RXTX_UNKNOWN) {
+		cmpres = stream->rxtx;
+	} else {
+		cmpres = memcmp(&stream->src, &stream->dst, sizeof(struct in_addr));
+		cmpres = cmpres || (stream->srcport > stream->dstport);
+	}
+	if (cmpres > 0) {
 		struct in_addr	addr;
 		gushort		port;
 		memcpy(&addr, &stream->src, sizeof(struct in_addr));
