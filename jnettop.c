@@ -351,7 +351,9 @@ void resolverThreadFunc(gpointer task, gpointer user_data) {
 	int  e;
 	gchar *name;
 
+#if HAVE_GETHOSTBYADDR_R_8
 	gethostbyaddr_r(&entry->addr, sizeof(struct in_addr), AF_INET, &shentry, buffer, 4096, &hentry, &e);
+#endif
 	if (!e) {
 		name = g_strdup(hentry->h_name);
 		entry->name = name;

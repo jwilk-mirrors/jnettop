@@ -1,3 +1,9 @@
+AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_5], [Set to 1 if gethostbyaddr_r takes 5 arguments])
+AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_7], [Set to 1 if gethostbyaddr_r takes 7 arguments])
+AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_8], [Set to 1 if gethostbyaddr_r takes 8 arguments])
+AH_TEMPLATE([NEED_REENTRANT], [Set to 1 if gethostbyaddr_r requires _REENTRANT symbol to be defined])
+
+
 #
 # AC_NETTOP_GETHOSTBY_LIB_CHECK
 #
@@ -116,6 +122,115 @@ AC_DEFUN(AC_NETTOP_PCAP_CHECK,
 
 	AC_CHECK_LIB(pcap, pcap_open_live,, AC_MSG_ERROR(Library libpcap not found.),
 	  $SOCKET_LIBS $NSL_LIBS)
+])
+
+dnl ************************************************************
+dnl check for "localhost", if it doesn't exist, we can't do the
+dnl gethostbyname_r tests!
+dnl 
+dnl Copied from cURL package ;
+dnl Done by Jakub Skopal <j@kubs.cz> on 2002-08-28.
+dnl
+
+AC_DEFUN(AC_NETTOP_CHECK_WORKING_RESOLVER,[
+AC_MSG_CHECKING([if "localhost" resolves])
+AC_TRY_RUN([
+#include <string.h>
+#include <sys/types.h>
+#include <netdb.h>
+
+int
+main () {
+struct hostent *h;
+h = gethostbyname("localhost");
+exit (h == NULL ? 1 : 0); }],[
+      AC_MSG_RESULT(yes)],[
+      AC_MSG_RESULT(no)
+      AC_MSG_ERROR([can't figure out gethostbyname_r() since localhost doesn't resolve])
+
+      ]
+)
+])
+
+dnl 
+dnl Copied from cURL package ;
+dnl Done by Jakub Skopal <j@kubs.cz> on 2002-08-28.
+dnl
+AC_DEFUN(AC_NETTOP_CHECK_GETHOSTBYADDR_R,
+[
+  dnl check for number of arguments to gethostbyaddr_r. it might take
+  dnl either 5, 7, or 8 arguments.
+  AC_CHECK_FUNCS(gethostbyaddr_r,[
+    AC_MSG_CHECKING(if gethostbyaddr_r takes 5 arguments)
+    AC_TRY_COMPILE([
+#include <sys/types.h>
+#include <netdb.h>],[
+char * address;
+int length;
+int type;
+struct hostent h;
+struct hostent_data hdata;
+int rc;
+rc = gethostbyaddr_r(address, length, type, &h, &hdata);],[
+      AC_MSG_RESULT(yes)
+      AC_DEFINE(HAVE_GETHOSTBYADDR_R_5)
+      ac_cv_gethostbyaddr_args=5],[
+      AC_MSG_RESULT(no)
+      AC_MSG_CHECKING(if gethostbyaddr_r with -D_REENTRANT takes 5 arguments)
+      AC_TRY_COMPILE([
+#define _REENTRANT
+#include <sys/types.h>
+#include <netdb.h>],[
+char * address;
+int length;
+int type;
+struct hostent h;
+struct hostent_data hdata;
+int rc;
+rc = gethostbyaddr_r(address, length, type, &h, &hdata);],[
+	AC_MSG_RESULT(yes)
+	AC_DEFINE(HAVE_GETHOSTBYADDR_R_5)
+	AC_DEFINE(NEED_REENTRANT)
+	ac_cv_gethostbyaddr_args=5],[
+	AC_MSG_RESULT(no)
+	AC_MSG_CHECKING(if gethostbyaddr_r takes 7 arguments)
+	AC_TRY_COMPILE([
+#include <sys/types.h>
+#include <netdb.h>],[
+char * address;
+int length;
+int type;
+struct hostent h;
+char buffer[8192];
+int h_errnop;
+struct hostent * hp;
+
+hp = gethostbyaddr_r(address, length, type, &h,
+                     buffer, 8192, &h_errnop);],[
+	  AC_MSG_RESULT(yes)
+	  AC_DEFINE(HAVE_GETHOSTBYADDR_R_7)
+	  ac_cv_gethostbyaddr_args=7],[
+	  AC_MSG_RESULT(no)
+	  AC_MSG_CHECKING(if gethostbyaddr_r takes 8 arguments)
+	  AC_TRY_COMPILE([
+#include <sys/types.h>
+#include <netdb.h>],[
+char * address;
+int length;
+int type;
+struct hostent h;
+char buffer[8192];
+int h_errnop;
+struct hostent * hp;
+int rc;
+
+rc = gethostbyaddr_r(address, length, type, &h,
+                     buffer, 8192, &hp, &h_errnop);],[
+	    AC_MSG_RESULT(yes)
+	    AC_DEFINE(HAVE_GETHOSTBYADDR_R_8)
+	    ac_cv_gethostbyaddr_args=8],[
+	    AC_MSG_RESULT(no)
+	    have_missing_r_funcs="$have_missing_r_funcs gethostbyaddr_r"])])])])])
 ])
 
 

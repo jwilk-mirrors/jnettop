@@ -19,6 +19,9 @@
  */
 
 #include "config.h"
+#if NEED_REENTRANT
+# define _REENTRANT
+#endif
 #include <stdlib.h>
 #include <stdarg.h>
 #if HAVE_STRING_H
