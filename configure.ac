@@ -1,5 +1,5 @@
 #
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/configure.ac,v 1.18 2004-09-29 19:09:35 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/configure.ac,v 1.19 2004-10-01 09:57:59 merunka Exp $
 #
 # Process this file with autoconf to produce a configure script.
 AC_INIT([jnettop], [0.10], [j@kubs.cz])
@@ -15,7 +15,7 @@ AC_NETTOP_GCC_FLAGS
 AC_CHECK_LIB([ncurses], [wbkgdset],, AC_MSG_ERROR("ncurses library is required"))
 # Checks for header files.
 AC_HEADER_STDC
-AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stdlib.h string.h sys/socket.h ncurses.h])
+AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stdlib.h string.h sys/socket.h ncurses.h sys/sockio.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST

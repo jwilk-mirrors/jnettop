@@ -35,7 +35,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/socket.h>
-#include <sys/sockio.h>
+#if HAVE_SYS_SOCKIO_H
+# include <sys/sockio.h>
+#endif
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pcap.h>
@@ -61,7 +63,11 @@
 #define FILTER_DATA_STRING_LENGTH	256
 #define FILTER_DATA_STRING_LENGTH_S	"255"
 
-#define ntop_s6_addr32	_S6_un._S6_u32
+#ifdef s6_addr32
+# define ntop_s6_addr32	s6_addr32
+#else
+# define ntop_s6_addr32	_S6_un._S6_u32
+#endif
 
 typedef struct __ntop_device {
 	gchar			*name;

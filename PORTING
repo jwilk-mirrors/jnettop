@@ -3,22 +3,25 @@ This file reflects status of porting to various OSes/architectures/etc...
 In case you succeeded in compiling and/or running jnettop on a new platform,
 please send me a report, patch, problem report, etc... to j@kubs.cz
 
-thanks, Jakub Skopal
+thanks, Jakub
 
 Many thanks to sourceforge for their compile farm. I was able to do many
 portability tests in there.
 
-OS		Distro		Architecture		Status
----------------	---------------	-----------------------	-----------------
-Linux/2.4	RedHat 7.3	i386			RUNNING
-Linux/2.4	Debian 2.2	i386			COMPILABLE
-FreeBSD/4.6	FreeBSD		i386			COMPILABLE
-Linux/2.4	Debian 3.0	Alpha			COMPILABLE
-MacOS X 10.1 SE	MacOS X		PPC			NOT WORKING (1)
-Linux/2.4	Debian 3.0	PPC			COMPILABLE
-Linux/2.4	Debian 3.0	Sparc			COMPILABLE
-Solaris 8	Solaris 8	Sparc			RUNNING (2)
-Solaris 7	Solaris 7	Sparc			RUNNING (2)
+OS		Distro		Arch.	Ver.tested	Status
+---------------	---------------	-------	--------------- ----------------
+OpenBSD/3.4	OpenBSD		i386	0.10		
+Linux/2.4	Fedora Core 1	i386	0.10		RUNNING
+Solaris 5.9	Solaris 5.9	i386	0.10		COMPILABLE
+
+Linux/2.4	Debian 2.2	i386	0.3		COMPILABLE
+FreeBSD/4.6	FreeBSD		i386	0.3		COMPILABLE
+Linux/2.4	Debian 3.0	Alpha	0.3		COMPILABLE
+MacOS X 10.1 SE	MacOS X		PPC	0.3		NOT WORKING (1)
+Linux/2.4	Debian 3.0	PPC	0.3		COMPILABLE
+Linux/2.4	Debian 3.0	Sparc	0.3		COMPILABLE
+Solaris 8	Solaris 8	Sparc	0.3		RUNNING (2)
+Solaris 7	Solaris 7	Sparc	0.3		RUNNING (2)
 
 Notes:
 
@@ -35,4 +38,4 @@ COMPILABLE      Package can be built, but I didn't have root access to test,
                 whether it actually works.
 RUNNING         Package can be compiled and it worked.
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/PORTING,v 1.5 2002-08-31 17:15:03 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/PORTING,v 1.6 2004-10-01 09:57:59 merunka Exp $
