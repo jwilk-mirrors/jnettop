@@ -1,5 +1,7 @@
 2002-08-31	Jakub Skopal	<j@kubs.cz>
 
+ * modified configure.ac, so that it uses -Wall when compiling with GCC.
+   Thanks again go to David B Harris aka ElectricElf
  * corrected too-wide terminal bug. Many thanks to David B Harris aka
    ElectricElf for patience during debugging
  * implemented bit/bytes per second switch (thanks to Martynas Bieliauskas
@@ -36,4 +38,4 @@
 
  * initial release
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.9 2002-08-31 18:40:00 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.10 2002-09-02 15:23:06 merunka Exp $
