@@ -1,0 +1,96 @@
+.\"                                      Hey, EMACS: -*- nroff -*-
+.\" First parameter, NAME, should be all caps
+.\" Second parameter, SECTION, should be 1-8, maybe w/ subsection
+.\" other parameters are allowed: see man(7), man(1)
+.TH JNETTOP 8 "April 23, 2003"
+.\" Please adjust this date whenever revising the manpage.
+.\"
+.\" Some roff macros, for reference:
+.\" .nh        disable hyphenation
+.\" .hy        enable hyphenation
+.\" .ad l      left justify
+.\" .ad b      justify to both left and right margins
+.\" .nf        disable filling
+.\" .fi        enable filling
+.\" .br        insert line break
+.\" .sp <n>    insert n+1 empty lines
+.\" for manpage-specific macros, see man(7)
+.SH NAME
+jnettop \- View hosts/ports taking up the most network traffic
+.SH SYNOPSIS
+.B jnettop
+[options] [-i interface] [-d filename] [-f filename] [-x rule]
+.SH DESCRIPTION
+This manual page documents briefly the
+.B jnettop
+command.
+.PP
+.\" TeX users may be more comfortable with the \fB<whatever>\fP and
+.\" \fI<whatever>\fP escape sequences to invode bold face and italics, 
+.\" respectively.
+\fBjnettop\fP captures traffic coming across the host it is running on and displays streams sorted by bandwidth they use. Result is a nice listing of communication on network by host and port, how many bytes went through this transport and the bandwidth it is consuming.
+.SH OPTIONS
+These programs follow the usual GNU command line syntax, with long
+options starting with two dashes (`-').
+A summary of options is included below.
+.TP
+.B \-h, \-\-help
+Show summary of options.
+.TP
+.B \-v, \-\-version
+Show version of program.
+.TP
+.B \-i, \-\-interface name
+capture packets on specified interface
+.TP
+.B \-d, \-\-debug filename
+write debug information into file
+.TP
+.B \-c, \-\-content-filter
+disable content filtering
+.TP
+.B \-b, \-\-bit-units
+show BPS In bits per second, not bytes per second
+.TP
+.B \-f, \-\-config-file filename
+reads configuration from filename. defaults to ~/.jnettop. an example can be found at /usr/share/doc/jnettop/dot.jnettop.
+or in .jnettop file from original distribution package.
+.TP
+.B \-x, \-\-filter rule
+allows for specification of custom filtering rule. this allows for
+.BR tcpdump(1)
+style syntax. don't forget to enclolse the filter into quotes when running from a shell.
+.\".SH SEE ALSO
+.\".BR bar (1),
+.SH CONFIGURATION
+Program looks for settings in the file specified by parameter \fB-f\fP, which defaults to ~/.jnettop. Configuration file is
+an ordinary text file with keywords and their arguments. You HAVE to enclose arguments into double quotes. Available keywords
+are:
+.TP
+\fBinterface\fR
+The \fBinterface\fP keyword specifies network interface on which to start listening. Example:
+.RS
+.PP
+interface "eth0"
+.RE
+.TP
+\fBvariable\fR
+The \fBvariable\fP keyword introduces a string variable for use in future rule definitions. It can be used to shorten rule definitions. Example:
+.RS
+.PP
+variable "intranet" "net 192.168.0.0/16 or 10.0.0.0/8 or 172.16.0.0/12"
+.RE
+.TP
+\fBrule\fR
+The \fBrule\fP keyword defines a set of predefined tcpdump(1)-like filters to apply. You can specify various filters as "show me what 192.168.1.32" sends:
+.RS
+.PP
+rule "show 192.168.1.32" "src 192.168.1.32"
+.RE
+.TP
+For more information, see README file or .jnettop example configuration file included in distribution.
+.SH AUTHOR
+This manual page was originally written by Ari Pollak <ari@debian.org>,
+for the Debian GNU/Linux system. Small changes were
+introduced by Jakub Skopal <j@kubs.cz>
+

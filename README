@@ -1,4 +1,4 @@
-This is jnettop 0.7.
+This is jnettop 0.8.
 It's a package, which should do simmilar job for network as top does for
 processes.
 
@@ -76,6 +76,12 @@ After you start jnettop, you can use the "f" key to select active filter used
 PRIOR to any packet processing. This filter is applied BEFORE any statistics
 are computed, so even the total BPS is computed only out of the packets, that
 pass the filter(!!).
+
+Since version 0.8, jnettop supports "interface" keyword, which specifies
+which interface to listen after you start it up. Example:
+
+  interface	"eth0"
+
 The pathname of configuraton file can be overrided by specifying -f command
 line parameter.
 
@@ -85,7 +91,7 @@ line parameter.
    feature on a screenshot)
 
 There are various libpcap versions out there with different capabilities.
-Notably there is 0.6.2 and older, which don't support interface discovery.
+Notably there are 0.6.2 and older, which don't support interface discovery.
 With these versions of libpcap, you won't be able to switch between interfaces
 while running jnettop. Anyway, you can use "-i" parameter to specify which
 interface to listen on (since jnettop 0.2).
@@ -142,10 +148,6 @@ a HTTP request or addresses of ongoing SMTP session. Content filtering is
 enabled by default and can be disabled while running. There can be performance
 problems on a very busy server which would cause various packets to be dropped.
 
-Copyright (C) 2002 Jakub Skopal
-Portions of the package are taken from the tcpdump project and their rights are
-held by their respective owners stated in the beginning of the files.
-
 -- 100% CPU usage --
 
   (Why does jnettop consume all CPU time?)
@@ -157,5 +159,9 @@ jnettop consumes all available CPU time, but should behave nicely, so that
 it consumes all time up to 100%. Other processes should have theire appropriate
 time. This behaviour does not include Linux
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/README,v 1.9 2002-10-17 17:22:01 merunka Exp $
+Copyright (C) 2002, 2003 Jakub Skopal
+Portions of the package are taken from the tcpdump project and their rights are
+held by their respective owners stated in the beginning of the files.
+
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/README,v 1.10 2003-04-23 06:58:38 merunka Exp $
 

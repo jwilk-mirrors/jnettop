@@ -1,3 +1,4 @@
+# interface	"eth1"
 variable	"intranet"	"net 192.168.0.0/16 or 10.0.0.0/8 or 172.16.0.0/12"
 rule		"Intranet<->Extranet"	"((src ${intranet}) and not (dst ${intranet})) or ((dst ${intranet}) and not (src ${intranet}))"
 rule		"Google"	"host www.google.com"

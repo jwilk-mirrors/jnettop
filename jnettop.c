@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.18 2002-10-17 17:22:01 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.19 2003-04-23 06:58:38 merunka Exp $
  *
  */
 
@@ -64,6 +64,7 @@ GTimeVal	statusTimeout;
 
 char		*configFileName;
 GPtrArray	*bpfFilters;
+char		*configDeviceName;
 
 struct bpf_program	activeBPFFilter;
 char		*activeBPFFilterName;
@@ -539,20 +540,23 @@ void resolverThreadFunc(gpointer task, gpointer user_data) {
 	ntop_resolv_entry *entry = (ntop_resolv_entry *)task;
 	gchar buffer[4096];
 	struct hostent shentry, *hentry;
-	int  e;
+	int  e, ret;
 	gchar *name;
 
+	ret = 0;
+
 #if HAVE_GETHOSTBYADDR_R_8
-	gethostbyaddr_r(&entry->addr, sizeof(struct in_addr), AF_INET, &shentry, buffer, 4096, &hentry, &e);
+	ret = gethostbyaddr_r(&entry->addr, sizeof(struct in_addr), AF_INET, &shentry, buffer, 4096, &hentry, &e);
 #elif HAVE_GETHOSTBYADDR_R_7
 	hentry = gethostbyaddr_r(&entry->addr, sizeof(struct in_addr), AF_INET, &shentry, buffer, 4096, &e);
 #else
 # error "No suitable gethostbyaddr_r found by configure"
 #endif
-	if (!e) {
-		name = g_strdup(hentry->h_name);
-		entry->name = name;
+	if (ret || e) {
+		return;
 	}
+	name = g_strdup(hentry->h_name);
+	entry->name = name;
 }
 
 gpointer sorterThreadFunc(gpointer data) {
@@ -716,6 +720,8 @@ gpointer displayThreadFunc(gpointer data) {
 			}
 			break;
 		case DISPLAYMODE_HELP:
+			mvwprintw(listWindow, 2, 0, "I must write something here... :)");
+			mvwprintw(listWindow, 4, 0, "Press any key to return.");
 			break;
 		}
 
@@ -979,6 +985,7 @@ void    initDefaults() {
 	entry = g_new0(ntop_resolv_entry, 1);
 	entry->name = "AGGREGATED";
 	g_hash_table_insert(resolverCache, GUINT_TO_POINTER(0x01000000), entry);
+	configDeviceName = NULL;
 }
 
 void	readConfig() {
@@ -1080,6 +1087,15 @@ void	readConfig() {
 			g_string_free(str, FALSE);
 			continue;
 		}
+		if (!g_ascii_strcasecmp(s->value.v_identifier, "interface")) {
+			tt = g_scanner_get_next_token(s);
+			if (tt != G_TOKEN_STRING) {
+				fprintf(stderr, "Parse error on line %d: interface name as string expected.\n", line);
+				exit(255);
+			}
+			configDeviceName = g_strdup(s->value.v_string);
+			continue;
+		}
 	}
 
 	g_hash_table_destroy(variables);
@@ -1171,20 +1187,6 @@ int main(int argc, char ** argv) {
 		exit(255);
 	}
 
-	if (deviceName) {
-		createDevice(deviceName);
-	} else {
-		lookupDevices();
-	}
-	checkDevices();
-
-	if (!devices_count) {
-		fprintf(stderr, "Autodiscovery found no devices. Specify device you want to watch with -i parameter\n");
-		exit(255);
-	}
-
-	newDevice = devices;
-
 	g_thread_init(NULL);
 
 	packetQueue = g_queue_new();
@@ -1209,6 +1211,36 @@ int main(int argc, char ** argv) {
 
 	initDefaults();
 	readConfig();
+
+	lookupDevices();
+	
+	newDevice = NULL;
+
+	if (!devices_count) {
+			if (!deviceName && !configDeviceName) {
+				fprintf(stderr, "Autodiscovery found no devices. Specify device you want to watch with -i parameter\n");
+				exit(255);
+			} else if (deviceName) {
+				createDevice(deviceName);
+			} else {
+				createDevice(configDeviceName);
+			}
+	} else if (configDeviceName) {
+		int i;
+		for (i=0; i<devices_count; i++) {
+			if (!strcmp(devices[i].name, configDeviceName)) {
+				newDevice = devices + i;
+				break;
+			}
+		}
+		if (!newDevice)
+			createDevice(configDeviceName);
+	}
+
+	if (!newDevice)
+		newDevice = devices;
+
+	checkDevices();
 
 	initscr();
 	cbreak();

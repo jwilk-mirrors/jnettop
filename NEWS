@@ -1,4 +1,9 @@
+2003-04-23:	Added man page
+
+2003-04-16:	Added "interface" keyword
+		
 2002-10-16:	Added suspend feature
+
 2002-10-13:	Added -f command line parameter
 		Added support for BPF filters to filter packets prior to processing them
 
@@ -14,4 +19,4 @@
 
 2002-08-22:	The package is entirely new.
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/NEWS,v 1.5 2002-10-16 20:06:29 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/NEWS,v 1.6 2003-04-23 06:58:38 merunka Exp $

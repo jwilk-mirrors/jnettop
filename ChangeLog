@@ -1,3 +1,13 @@
+2003-04-23	Jakub Skopal	<j@kubs.cz>
+
+ * included man page by Ari Pollak, thanks for help!
+
+2003-04-16	Jakub Skopal	<j@kubs.cz>
+
+ * implemented "interface" keyword in configuration file
+   (thanks go to Ari Pollak for suggestion)
+ * added resolver patch by Andrew Leiserson (many thanks!)
+
 2002-10-17	Jakub Skopal	<j@kubs.cz>
 
  * implemented -x command line parameter. You are now able to
@@ -7,6 +17,8 @@
  * Somewhat cleared the display and made it (hopefully) more
    readable
  * implemented rx/tx recognition
+ * I forget to mention Rodrigo Reyes to come up with idea of
+   aggregation.
 
 2002-10-16	Jakub Skopal	<j@kubs.cz>
 
@@ -70,4 +82,4 @@
 
  * initial release
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.16 2002-10-17 17:22:01 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.17 2003-04-23 06:58:38 merunka Exp $
