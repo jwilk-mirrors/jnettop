@@ -1,3 +1,8 @@
+2002-10-17	Jakub Skopal	<j@kubs.cz>
+
+ * implemented -x command line parameter. You are now able to
+   specify custom filter right on the command line
+
 2002-10-16	Jakub Skopal	<j@kubs.cz>
 
  * implemented suspend feature, thanks go to Rodrigo Reyes for
@@ -60,4 +65,4 @@
 
  * initial release
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.14 2002-10-16 20:02:50 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.15 2002-10-17 10:47:05 merunka Exp $

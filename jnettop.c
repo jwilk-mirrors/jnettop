@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.16 2002-10-16 20:02:51 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.17 2002-10-17 10:47:05 merunka Exp $
  *
  */
 
@@ -69,6 +69,8 @@ char		*activeBPFFilterName;
 char		*newBPFFilter;
 char		*newBPFFilterName;
 
+char		*commandLineRule;
+
 GThread		*snifferThread;
 GThread		*sorterThread;
 GThread		*processorThread;
@@ -94,10 +96,25 @@ gboolean	onoffSuspended;
 
 #define		DISPLAYMODE_NORMAL		0
 #define		DISPLAYMODE_BPFFILTERS		1
+#define		DISPLAYMODE_HELP		2
 
 int		displayMode = DISPLAYMODE_NORMAL;
 
 WINDOW		*listWindow;
+
+const char * validateBPFFilter(char *filter) {
+	const char *ret = NULL;
+	struct bpf_program program;
+	pcap_t *pcap;
+	pcap = pcap_open_dead(DLT_EN10MB, 1500);
+	if (pcap_compile(pcap, &program, filter, 0, 0xFFFFFFFF) == -1) {
+		ret = pcap_geterr(pcap);
+	} else {
+		pcap_freecode(&program);
+	}
+	pcap_close(pcap);
+	return ret;
+}
 
 const char * address2String(int af, const void *src, char *dst, size_t cnt) {
 #if HAVE_INET_NTOP
@@ -385,7 +402,7 @@ void drawScreen() {
 	}
 	g_mutex_lock(statusMutex);
 	if (statusMessage == NULL) {
-		mvprintw(2, 0, "[q]uit                             [c]ontent filtering: XXX [b]ps=XXXXXXX ");
+		mvprintw(2, 0, "[q]uit [h]elp                      [c]ontent filtering: XXX [b]ps=XXXXXXX ");
 	} else {
 		GTimeVal tv;
 		attron(A_BOLD);
@@ -594,13 +611,18 @@ gpointer displayThreadFunc(gpointer data) {
 			mvwprintw(listWindow, 1, 0, "Select rule you want to apply:");
 			wattroff(listWindow, A_BOLD);
 			mvwprintw(listWindow, 3, 5, "[.] None");
+			if (commandLineRule) {
+				mvwprintw(listWindow, 4, 5, "[,] %s", commandLineRule);
+			}
 			for (i=0; i<bpfFilters->len/2; i++) {
-				mvwprintw(listWindow, i+4, 5, "[%c] %s", 'a'+i, g_ptr_array_index(bpfFilters, i*2));
+				mvwprintw(listWindow, i+5, 5, "[%c] %s", 'a'+i, g_ptr_array_index(bpfFilters, i*2));
 			}
 			if (bpfFilters->len == 0) {
 				mvwprintw(listWindow, 6, 5, "You have no predefined filter rules. See README file for explanation");
 				mvwprintw(listWindow, 7, 5, "on how to predefine filter rules");
 			}
+			break;
+		case DISPLAYMODE_HELP:
 			break;
 		}
 
@@ -637,6 +659,9 @@ gpointer displayThreadFunc(gpointer data) {
 					case 'f':
 						displayMode = DISPLAYMODE_BPFFILTERS;
 						break;
+					case 'h':
+						displayMode = DISPLAYMODE_HELP;
+						break;
 					case '0':
 					case '1':
 					case '2':
@@ -657,20 +682,30 @@ gpointer displayThreadFunc(gpointer data) {
 				}
 				break;
 			case DISPLAYMODE_BPFFILTERS:
-				if ((i == '.') || ((i >= 'a') && (i < 'a' + (bpfFilters->len/2)))) {
+				if ((i == '.') || (commandLineRule && (i == ',')) || ((i >= 'a') && (i < 'a' + (bpfFilters->len/2)))) {
 					drawStatus("Please wait, cleaning up...");
-					if (i == '.') {
+					switch (i) {
+					case '.':
 						newBPFFilter = NULL;
 						newBPFFilterName = NULL;
-					} else {
+						break;
+					case ',':
+						newBPFFilterName = commandLineRule;
+						newBPFFilter = commandLineRule;
+						break;
+					default:
 						newBPFFilter = g_ptr_array_index(bpfFilters, (i - 'a')*2 + 1);
 						newBPFFilterName = (char *) g_ptr_array_index(bpfFilters, (i - 'a')*2 );
+						break;
 					}
 					newDevice = activeDevice;
 					activeDevice = NULL;
 					displayMode = DISPLAYMODE_NORMAL;
 					break;
 				}
+				break;
+			case DISPLAYMODE_HELP:
+				displayMode = DISPLAYMODE_NORMAL;
 				break;
 			}
 		}
@@ -781,6 +816,7 @@ gpointer snifferThreadFunc(gpointer data) {
 #if HAVE_PCAP_SETNONBLOCK
 			pcap_setnonblock(handle, 1, NULL);
 #endif
+			activeBPFFilterName = NULL;
 			if (newBPFFilter) {
 				isFilterUsed = FALSE;
 				debug("Filter: %s\n", newBPFFilter);
@@ -967,6 +1003,9 @@ int main(int argc, char ** argv) {
 				"    -c, --content-filter   disable content filtering\n"
 				"    -b, --bit-units        show BPS in bits per second, not bytes per second\n"
 				"    -f, --config-file name reads configuration from file. defaults to ~/.jnettop\n"
+				"    -x, --filter rule      allows for specification of custom filtering rule\n"
+				"                           this follows tcpdump(1) syntax. don't forget to\n"
+				"                           enclose the filter into quotes when running from shell\n"
 				"\n"
 				"Report bugs to <j@kubs.cz>\n");
 			exit(0);
@@ -1005,6 +1044,22 @@ int main(int argc, char ** argv) {
 				exit(255);
 			}
 			configFileName = argv[++a];
+			continue;
+		}
+		if (!strcmp(argv[a], "-x") || !strcmp(argv[a], "--filter")) {
+			char *ret;
+			if (a+1>=argc) {
+				fprintf(stderr, "%s switch requires argument\n", argv[a]);
+				exit(255);
+			}
+			commandLineRule = argv[++a];
+			ret = validateBPFFilter(commandLineRule);
+			if (ret) {
+				fprintf(stderr, "Error compiling rule: %s\n", ret);
+				exit(255);
+			}
+			newBPFFilterName = commandLineRule;
+			newBPFFilter = commandLineRule;
 			continue;
 		}
 		fprintf(stderr, "Unknown argument: %s\n", argv[a]);
@@ -1107,4 +1162,5 @@ int main(int argc, char ** argv) {
 	}
 
 	endwin();
+	return 0;
 }
