@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.13 2002-09-03 21:03:03 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.14 2002-09-03 21:05:30 merunka Exp $
  *
  */
 
@@ -880,4 +880,6 @@ int main(int argc, char ** argv) {
 	}
 
 	endwin();
+
+	return 0;
 }
