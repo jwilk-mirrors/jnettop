@@ -1,4 +1,4 @@
-This is jnettop 0.3.
+This is jnettop 0.4.
 It's a package, which should do simmilar job for network as top does for
 processes.
 
@@ -59,7 +59,7 @@ protocols.
 
 -- PORTABILITY --
 
-  (Does Jnettop works under system X on computer Y)
+  (Does Jnettop work under system X on computer Y)
 
 For portability description, please, see PORTING file. There is an up-to-date
 status of portability issues. Generally, I'd like jnettop to be working on
