@@ -12,7 +12,7 @@
 # PARTICULAR PURPOSE.
 
 
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/aclocal.m4,v 1.19 2004-10-01 19:28:28 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/aclocal.m4,v 1.20 2004-10-01 20:26:03 merunka Exp $
 
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_5], [Set to 1 if gethostbyaddr_r takes 5 arguments])
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_7], [Set to 1 if gethostbyaddr_r takes 7 arguments])
@@ -187,6 +187,7 @@ AC_DEFUN(AC_NETTOP_CHECK_IN6_ADDR,
 [
   AC_MSG_CHECKING([if struct in6_addr contains s6_addr32 member])
   AC_TRY_COMPILE([
+#include <sys/types.h>
 #include <netinet/in.h>],[
 struct in6_addr adr;
 adr.s6_addr32[0]=0;
@@ -196,6 +197,7 @@ adr.s6_addr32[0]=0;
       AC_MSG_RESULT(no)
       AC_MSG_CHECKING([if struct in6_addr contains _S6_un._S6_u32 member])
       AC_TRY_COMPILE([
+#include <sys/types.h>
 #include <netinet/in.h>],[
 struct in6_addr adr;
 adr._S6_un._S6_u32[0]=0;
@@ -205,6 +207,7 @@ adr._S6_un._S6_u32[0]=0;
 	  AC_MSG_RESULT(no)
 	  AC_MSG_CHECKING([if struct in6_addr contains __u6_addr.__u6_addr32 member])
 	  AC_TRY_COMPILE([
+#include <sys/types.h>
 #include <netinet/in.h>],[
 struct in6_addr adr;
 adr.__u6_addr.__u6_addr32[0]=0;

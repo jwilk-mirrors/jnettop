@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.27 2004-10-01 19:28:28 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.28 2004-10-01 20:26:03 merunka Exp $
  *
  */
 
@@ -62,6 +62,7 @@ GMutex		*freePacketStackMutex;
 GMutex		*statusMutex;
 char		*statusMessage;
 GTimeVal	statusTimeout;
+GMutex		*gethostbyaddrMutex;
 
 char		*configFileName;
 GPtrArray	*bpfFilters;
@@ -632,20 +633,27 @@ void resolverThreadFunc(gpointer task, gpointer user_data) {
 	int  e, ret, size;
 	gchar *name;
 
-	ret = 0;
+#if !HAVE_GETHOSTBYADDR_R_8 && !HAVE_GETHOSTBYADDR_7
+	g_mutex_lock(gethostbyaddrMutex);
+#endif
+	ret = 0; e=0;
 	size = entry->af == AF_INET ? sizeof(struct in_addr) : sizeof(struct in6_addr);
 #if HAVE_GETHOSTBYADDR_R_8
 	ret = gethostbyaddr_r(&entry->addr, size, entry->af, &shentry, buffer, 4096, &hentry, &e);
 #elif HAVE_GETHOSTBYADDR_R_7
 	hentry = gethostbyaddr_r(&entry->addr, size, entry->af, &shentry, buffer, 4096, &e);
 #else
-# error "No suitable gethostbyaddr_r found by configure"
+	hentry = gethostbyaddr(&entry->addr, size, entry->af);
 #endif
-	if (ret || e) {
-		return;
+	if (!hentry || ret || e) {
+		goto resolverfailed;
 	}
 	name = g_strdup(hentry->h_name);
 	entry->name = name;
+resolverfailed:
+#if !HAVE_GETHOSTBYADDR_R_8 && !HAVE_GETHOSTBYADDR_7
+	g_mutex_unlock(gethostbyaddrMutex);
+#endif
 }
 
 gpointer sorterThreadFunc(gpointer data) {
@@ -1447,6 +1455,8 @@ int main(int argc, char ** argv) {
 
 	displayStreamsMutex = g_mutex_new();
 	freePacketStackMutex = g_mutex_new();
+
+	gethostbyaddrMutex = g_mutex_new();
 
 	bpfFilters = g_ptr_array_new();
 
