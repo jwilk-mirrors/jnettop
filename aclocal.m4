@@ -12,7 +12,7 @@
 # PARTICULAR PURPOSE.
 
 
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/aclocal.m4,v 1.21 2004-10-01 22:43:35 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/aclocal.m4,v 1.22 2004-10-04 08:45:45 merunka Exp $
 
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_5], [Set to 1 if gethostbyaddr_r takes 5 arguments])
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_7], [Set to 1 if gethostbyaddr_r takes 7 arguments])
@@ -297,24 +297,6 @@ rc = gethostbyaddr_r(address, length, type, &h, &hdata);],[
 	AC_DEFINE(HAVE_GETHOSTBYADDR_R_5)
 	AC_DEFINE(NEED_REENTRANT)
 	ac_cv_gethostbyaddr_args=5],[
-	AC_MSG_RESULT(no)
-	AC_MSG_CHECKING(if gethostbyaddr_r takes 7 arguments)
-	AC_TRY_COMPILE([
-#include <sys/types.h>
-#include <netdb.h>],[
-char * address;
-int length;
-int type;
-struct hostent h;
-char buffer[8192];
-int h_errnop;
-struct hostent * hp;
-
-hp = gethostbyaddr_r(address, length, type, &h,
-                     buffer, 8192, &h_errnop);],[
-	  AC_MSG_RESULT(yes)
-	  AC_DEFINE(HAVE_GETHOSTBYADDR_R_7)
-	  ac_cv_gethostbyaddr_args=7],[
 	  AC_MSG_RESULT(no)
 	  AC_MSG_CHECKING(if gethostbyaddr_r takes 8 arguments)
 	  AC_TRY_COMPILE([
@@ -335,7 +317,7 @@ rc = gethostbyaddr_r(address, length, type, &h,
 	    AC_DEFINE(HAVE_GETHOSTBYADDR_R_8)
 	    ac_cv_gethostbyaddr_args=8],[
 	    AC_MSG_RESULT(no)
-	    have_missing_r_funcs="$have_missing_r_funcs gethostbyaddr_r"])])])])])
+	    have_missing_r_funcs="$have_missing_r_funcs gethostbyaddr_r"])])])])
 ])
 
 
@@ -1092,7 +1074,7 @@ dnl AM_PATH_GLIB_2_0([MINIMUM-VERSION, [ACTION-IF-FOUND [, ACTION-IF-NOT-FOUND [
 dnl Test for GLIB, and define GLIB_CFLAGS and GLIB_LIBS, if gmodule, gobject or 
 dnl gthread is specified in MODULES, pass to pkg-config
 dnl
-AC_DEFUN([AM_PATH_GLIB_2_0],
+AC_DEFUN(AM_PATH_GLIB_2_0,
 [dnl 
 dnl Get the cflags and libraries from pkg-config
 dnl
