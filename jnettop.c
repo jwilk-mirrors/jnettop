@@ -311,13 +311,13 @@ void drawStatus(guchar *msg) {
 }
 
 void drawScreen() {
-	if (LINES != activeLines || COLS != activeColumns) {
+	if (LINES != activeLines || COLS != activeColumns || !activeLines || !activeColumns) {
 		activeLines = LINES;
 		activeColumns = COLS;
 
 		if (activeLines < 20 || activeColumns < 80) {
 			endwin();
-			fprintf(stderr, "Too small terminal\n");
+			fprintf(stderr, "Too small terminal (detected size: %dx%d), minimum required size: 80x20\n", activeColumns, activeLines);
 			exit(255);
 		}
 

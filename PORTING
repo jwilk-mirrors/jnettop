@@ -17,7 +17,7 @@ Linux/2.4	Debian 3.0	Alpha			COMPILABLE
 MacOS X 10.1 SE	MacOS X		PPC			NOT WORKING (1)
 Linux/2.4	Debian 3.0	PPC			COMPILABLE
 Linux/2.4	Debian 3.0	Sparc			COMPILABLE
-Solaris 8	Solaris 8	Sparc			COMPILABLE
+Solaris 8	Solaris 8	Sparc			RUNNING (2)
 Solaris 7	Solaris 7	Sparc			RUNNING (2)
 
 Notes:
@@ -25,7 +25,7 @@ Notes:
 (1) I was not able to compile gettext on MacOS X 10.1 due to a CC internal
     error (gettext is glib2 requirement)
 (2) Latest gcc version is required or it is necessary to disable
-    optimalizations
+    optimalizations. I had problems with gcc 2.95.2.
 
 Explanation:
 

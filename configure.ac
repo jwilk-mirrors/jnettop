@@ -1,5 +1,5 @@
 # Process this file with autoconf to produce a configure script.
-AC_INIT([jnettop], [0.4], [j@kubs.cz])
+AC_INIT([jnettop], [0.4a], [j@kubs.cz])
 AM_INIT_AUTOMAKE
 
 # Checks for programs.
