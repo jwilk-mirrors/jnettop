@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.10 2004-09-30 08:06:01 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.11 2004-10-04 12:50:32 merunka Exp $
  * 
  */
 
@@ -304,15 +304,17 @@ gboolean resolveStream(const ntop_packet *packet, ntop_stream *stream, ntop_payl
 	if (stream->rxtx != RXTX_UNKNOWN) {
 		cmpres = stream->rxtx;
 	} else {
-		cmpres = memcmp(&stream->src, &stream->dst, sizeof(struct in_addr));
-		cmpres = cmpres || (stream->srcport > stream->dstport);
+		cmpres = memcmp(&stream->src, &stream->dst, sizeof(ntop_mutableaddress));
+		if (cmpres == 0) {
+			cmpres = stream->srcport > stream->dstport;
+		}
 	}
 	if (cmpres > 0) {
-		struct in6_addr	addr;
+		ntop_mutableaddress addr;
 		gushort		port;
-		memcpy(&addr, &stream->src, sizeof(struct in6_addr));
-		memcpy(&stream->src, &stream->dst, sizeof(struct in6_addr));
-		memcpy(&stream->dst, &addr, sizeof(struct in6_addr));
+		memcpy(&addr, &stream->src, sizeof(ntop_mutableaddress));
+		memcpy(&stream->src, &stream->dst, sizeof(ntop_mutableaddress));
+		memcpy(&stream->dst, &addr, sizeof(ntop_mutableaddress));
 		port = stream->srcport;
 		stream->srcport = stream->dstport;
 		stream->dstport = port;
