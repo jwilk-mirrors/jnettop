@@ -16,11 +16,23 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.11 2002-08-31 18:40:00 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.12 2002-09-03 20:49:00 merunka Exp $
  *
  */
 
 #include "jnettop.h"
+
+
+/*
+ * This stuff was copied out of Ethereal package by Gerald Combs <gerald@ethereal.com>
+ * The point is, that we can use select() on platforms, where packet socket is
+ * select()able. This prevents the capturer from taking all the processor time
+ * doing g_tread_yeald() all the time.
+ * Currently, this should happen only on BSD systems
+ */
+#if !defined(BSD)
+# define USE_SELECT
+#endif
 
 gchar 	*NTOP_PROTOCOLS[] = { "UNK.", "IP", "TCP", "UDP", "ARP", "ETHER", "SLL" };
 
@@ -676,10 +688,31 @@ gpointer snifferThreadFunc(gpointer data) {
 #endif
 			deviceDataLink = pcap_datalink(handle);
 		}
-		packetReceived = FALSE;
-		pcap_dispatch(handle, 10, (pcap_handler)dispatch_callback, NULL);
-		if (!packetReceived)
-			g_thread_yield();
+#ifdef USE_SELECT
+		{
+			int pcap_fd = pcap_fileno(handle);
+			int sel_ret;
+			struct timeval timeout;
+			fd_set set1;
+
+			FD_ZERO(&set1);
+			FD_SET(pcap_fd, &set1);
+			timeout.tv_sec = 0;
+			timeout.tv_usec = 500000;
+			sel_ret = select(pcap_fd+1, &set1, NULL, NULL, &timeout);
+			if (sel_ret > 0) {
+				pcap_dispatch(handle, 10, (pcap_handler)dispatch_callback, NULL);
+			}
+		}
+		
+#else
+		{
+			packetReceived = FALSE;
+			pcap_dispatch(handle, 10, (pcap_handler)dispatch_callback, NULL);
+			if (!packetReceived)
+				g_thread_yield();
+		}
+#endif
 	}
 
 	threadCount --;

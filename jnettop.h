@@ -31,7 +31,9 @@
 #else
 # error "No string.h nor strings.h found"
 #endif
+#include <sys/time.h>
 #include <sys/types.h>
+#include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
