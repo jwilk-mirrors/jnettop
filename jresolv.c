@@ -86,13 +86,13 @@ gboolean resolveStreamARP(const gchar  *data, guint len, ntop_stream *stream) {
 }
 
 gboolean resolveStreamEther(const gchar  *data, guint len, ntop_stream *stream) {
-	if (len<ETHER_HDRLEN) {
+	if (len<NTOP_ETHER_HDRLEN) {
 		return FALSE;
 	} else
 	{
 		guint16 proto = ntohs(((struct ntop_ether_header*)data)->ether_type);
-		data += ETHER_HDRLEN;
-		len -= ETHER_HDRLEN;
+		data += NTOP_ETHER_HDRLEN;
+		len -= NTOP_ETHER_HDRLEN;
 		switch (proto) {
 		case ETHERTYPE_IP:
 			return resolveStreamIP(data, len, stream);
@@ -147,9 +147,11 @@ gboolean resolveStream(const ntop_packet *packet, ntop_stream *stream) {
 	case DLT_EN10MB:
 		result = resolveStreamEther(data, len, stream);
 		break;
+#ifdef DLT_LINUX_SLL
 	case DLT_LINUX_SLL:
 		result = resolveStreamSLL(data, len, stream);
 		break;
+#endif
 	default:
 		debug("Unknown DataLink encapsulation: %d\n", packet->dataLink);
 		return FALSE;
