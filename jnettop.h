@@ -35,6 +35,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/sockio.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pcap.h>
@@ -59,6 +60,8 @@
 #define FREEPACKETSTACK_PEEK		50
 #define FILTER_DATA_STRING_LENGTH	256
 #define FILTER_DATA_STRING_LENGTH_S	"255"
+
+#define ntop_s6_addr32	_S6_un._S6_u32
 
 typedef struct __ntop_device {
 	gchar			*name;

@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.25 2004-10-01 09:39:00 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.26 2004-10-01 09:47:53 merunka Exp $
  *
  */
 
@@ -130,10 +130,10 @@ void	setToHostAggregation(int af, ntop_mutableaddress *addr) {
 			addr->addr4.s_addr = htonl(0x01000000);
 			break;
 		case AF_INET6:
-			addr->addr6.s6_addr32[0] = 0x0;
-			addr->addr6.s6_addr32[1] = 0x0;
-			addr->addr6.s6_addr32[2] = 0x0;
-			addr->addr6.s6_addr32[3] = htonl(0x01000000);
+			addr->addr6.ntop_s6_addr32[0] = 0x0;
+			addr->addr6.ntop_s6_addr32[1] = 0x0;
+			addr->addr6.ntop_s6_addr32[2] = 0x0;
+			addr->addr6.ntop_s6_addr32[3] = htonl(0x01000000);
 			break;
 	}
 }
@@ -143,7 +143,7 @@ int	isHostAggregation(int af, const ntop_mutableaddress *addr) {
 		case AF_INET:
 			return addr->addr4.s_addr == htonl(0x01000000);
 		case AF_INET6:
-			return addr->addr6.s6_addr32[0] == 0x0 && addr->addr6.s6_addr32[1] == 0x0 && addr->addr6.s6_addr32[2] == 0x0  && addr->addr6.s6_addr32[3] == htonl(0x01000000);
+			return addr->addr6.ntop_s6_addr32[0] == 0x0 && addr->addr6.ntop_s6_addr32[1] == 0x0 && addr->addr6.ntop_s6_addr32[2] == 0x0  && addr->addr6.ntop_s6_addr32[3] == htonl(0x01000000);
 	}
 	return 0;
 }
@@ -247,15 +247,16 @@ void checkDevices() {
 	}
 	for (i=0; i<devices_count; i++) {
 		strncpy(ifr.ifr_name, devices[i].name, IFNAMSIZ);
-		ifr.ifr_hwaddr.sa_family = AF_UNSPEC;
 #ifdef SIOCGIFHWADDR
-		if (ioctl(s, SIOCGIFHWADDR, &ifr) == -1) {
-#else
-		if (ioctl(s, SIOCGIFADDR, &ifr) == -1) {
-#endif
-			fprintf(stderr, "Could not get HW address of interface %s: %s\n", devices[i].name, strerror(errno));
-		} else {
+		ifr.ifr_hwaddr.sa_family = AF_UNSPEC;
+		if (ioctl(s, SIOCGIFHWADDR, &ifr) >= 0) {
 			memcpy(&devices[i].hwaddr, &ifr.ifr_hwaddr, sizeof(struct sockaddr));
+#else
+		if (ioctl(s, SIOCGIFADDR, &ifr) >= 0) {
+			memcpy(&devices[i].hwaddr, &ifr.ifr_addr, sizeof(struct sockaddr));
+#endif
+		} else {
+			fprintf(stderr, "Could not get HW address of interface %s: %s\n", devices[i].name, strerror(errno));
 		}
 	}
 	close(s);
@@ -264,14 +265,14 @@ void checkDevices() {
 guint hashStream(gconstpointer key) {
 	const ntop_stream	*stream = (const ntop_stream *)key;
 	guint hash = 0;
-	hash = stream->src.addr6.s6_addr32[0];
-	hash ^= stream->src.addr6.s6_addr32[1];
-	hash ^= stream->src.addr6.s6_addr32[2];
-	hash ^= stream->src.addr6.s6_addr32[3];
-	hash ^= stream->dst.addr6.s6_addr32[0];
-	hash ^= stream->dst.addr6.s6_addr32[1];
-	hash ^= stream->dst.addr6.s6_addr32[2];
-	hash ^= stream->dst.addr6.s6_addr32[3];
+	hash = stream->src.addr6.ntop_s6_addr32[0];
+	hash ^= stream->src.addr6.ntop_s6_addr32[1];
+	hash ^= stream->src.addr6.ntop_s6_addr32[2];
+	hash ^= stream->src.addr6.ntop_s6_addr32[3];
+	hash ^= stream->dst.addr6.ntop_s6_addr32[0];
+	hash ^= stream->dst.addr6.ntop_s6_addr32[1];
+	hash ^= stream->dst.addr6.ntop_s6_addr32[2];
+	hash ^= stream->dst.addr6.ntop_s6_addr32[3];
 	hash ^= (((guint)stream->srcport) << 16) + (guint)stream->dstport;
 	return hash;
 }
@@ -309,10 +310,10 @@ gint compareStreamByStat(gconstpointer a, gconstpointer b) {
 guint hashResolvEntry(gconstpointer key) {
 	const ntop_resolv_entry *resolv = key;
 	guint hash = 0;
-	hash = resolv->addr.addr6.s6_addr32[0];
-	hash ^= resolv->addr.addr6.s6_addr32[1];
-	hash ^= resolv->addr.addr6.s6_addr32[2];
-	hash ^= resolv->addr.addr6.s6_addr32[3];
+	hash = resolv->addr.addr6.ntop_s6_addr32[0];
+	hash ^= resolv->addr.addr6.ntop_s6_addr32[1];
+	hash ^= resolv->addr.addr6.ntop_s6_addr32[2];
+	hash ^= resolv->addr.addr6.ntop_s6_addr32[3];
 	return hash;
 }
 
@@ -1090,10 +1091,10 @@ void    initDefaults() {
 	entry = g_new0(ntop_resolv_entry, 1);
 	entry->name = "UNKNOWNv6";
 	entry->af = AF_INET6;
-	entry->addr.addr6.s6_addr32[0] = 0x0;
-	entry->addr.addr6.s6_addr32[1] = 0x0;
-	entry->addr.addr6.s6_addr32[2] = 0x0;
-	entry->addr.addr6.s6_addr32[3] = 0x0;
+	entry->addr.addr6.ntop_s6_addr32[0] = 0x0;
+	entry->addr.addr6.ntop_s6_addr32[1] = 0x0;
+	entry->addr.addr6.ntop_s6_addr32[2] = 0x0;
+	entry->addr.addr6.ntop_s6_addr32[3] = 0x0;
 	g_hash_table_insert(resolverCache, entry, entry);
 	entry = g_new0(ntop_resolv_entry, 1);
 	entry->name = "AGGREGATEDv4";
@@ -1103,10 +1104,10 @@ void    initDefaults() {
 	entry = g_new0(ntop_resolv_entry, 1);
 	entry->name = "AGGREGATEDv6";
 	entry->af = AF_INET6;
-	entry->addr.addr6.s6_addr32[0] = 0x0;
-	entry->addr.addr6.s6_addr32[1] = 0x0;
-	entry->addr.addr6.s6_addr32[2] = 0x0;
-	entry->addr.addr6.s6_addr32[3] = htonl(0x01000000);
+	entry->addr.addr6.ntop_s6_addr32[0] = 0x0;
+	entry->addr.addr6.ntop_s6_addr32[1] = 0x0;
+	entry->addr.addr6.ntop_s6_addr32[2] = 0x0;
+	entry->addr.addr6.ntop_s6_addr32[3] = htonl(0x01000000);
 	g_hash_table_insert(resolverCache, entry, entry);
 	configDeviceName = NULL;
 }
