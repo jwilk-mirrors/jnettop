@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.12 2002-09-03 20:49:00 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.13 2002-09-03 21:03:03 merunka Exp $
  *
  */
 
@@ -406,15 +406,26 @@ void resolverThreadFunc(gpointer task, gpointer user_data) {
 
 #if HAVE_GETHOSTBYADDR_R_8
 	gethostbyaddr_r(&entry->addr, sizeof(struct in_addr), AF_INET, &shentry, buffer, 4096, &hentry, &e);
-#elif HAVE_GETHOSTBYADDR_R_7
-	hentry = gethostbyaddr_r(&entry->addr, sizeof(struct in_addr), AF_INET, &shentry, buffer, 4096, &e);
-#else
-# error "No suitable gethostbyaddr_r found by configure"
-#endif
 	if (!e) {
 		name = g_strdup(hentry->h_name);
 		entry->name = name;
 	}
+#elif HAVE_GETHOSTBYADDR_R_7
+	hentry = gethostbyaddr_r(&entry->addr, sizeof(struct in_addr), AF_INET, &shentry, buffer, 4096, &e);
+	if (!e) {
+		name = g_strdup(hentry->h_name);
+		entry->name = name;
+	}
+#else
+	static GStaticMutex mutex = G_STATIC_MUTEX_INIT;
+	g_static_mutex_lock(&mutex);
+	hentry = gethostbyaddr((const char *)&entry->addr, sizeof(struct in_addr), AF_INET);
+	if (hentry) {
+		name = g_strdup(hentry->h_name);
+		entry->name = name;
+	}
+	g_static_mutex_unlock(&mutex);
+#endif
 }
 
 gpointer sorterThreadFunc(gpointer data) {
