@@ -3920,6 +3920,8 @@ fi
 
 
 
+LDFLAGS="$LDFLAGS $NSL_LIBS $SOCKET_LIBS"
+
 
 echo "$as_me:$LINENO: checking if \"localhost\" resolves" >&5
 echo $ECHO_N "checking if \"localhost\" resolves... $ECHO_C" >&6
