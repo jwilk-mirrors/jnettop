@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.in,v 1.7 2002-10-13 20:20:54 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.in,v 1.8 2002-10-16 20:02:51 merunka Exp $
 SHELL = @SHELL@
 
 srcdir = @srcdir@
@@ -88,7 +88,7 @@ install_sh = @install_sh@
 INCLUDES = -I$(top_srcdir)/include @GLIB_CFLAGS@
 LDFLAGS = @GLIB_LIBS@ @NSL_LIBS@ @SOCKET_LIBS@
 
-EXTRA_DIST = jnettop.spec
+EXTRA_DIST = jnettop.spec .jnettop
 
 bin_PROGRAMS = jnettop
 

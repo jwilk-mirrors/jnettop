@@ -1,4 +1,4 @@
-This is jnettop 0.5.
+This is jnettop 0.6.
 It's a package, which should do simmilar job for network as top does for
 processes.
 
@@ -11,6 +11,46 @@ was getting red and see, what's going on there and whether is it right.
 I hope, somebody out there will find this tool usefull too.
 Just in case you wanted to write me any comments, hints, postcards, herritage
 announcements, love, wish, abuse etc., feel free to use my email, j@kubs.cz.
+
+-- .jnettop configuration file --
+
+  (How can I configure packet filters that apply prior to processing
+   packets)
+
+Since version 0.6, jnettop package scans your home directory for a file named
+".jnettop" and reads possible packet filters. Syntax of the configuration
+file is (at least I hope) obvious out of the example provided in .jnettop file
+included in distribution. The file consists of lines beginning with keywords.
+Each keyword can have various parameters. Following keywords were implemented
+so far:
+
+  variable	"<name>"	"<value>"
+
+    this keyword introduces new string variable of name <name>. This variable
+    is assigned value of <value>. Variables can be used in rule specifications
+    to shorten them and make them more readable.
+    ex.
+
+      variable	"intranet"	"net 192.168.0.0/16"
+
+  rule		"<name>"	"<packet filter specification>"
+
+    this keyword defines new packet filter rule of name <name>. Packet filter
+    syntax conforms to that of libpcap library or tcpdump program. Explanation
+    of the syntax can be found in manual page of tcpdump package. Specification
+    undergoes variable substitution. Each string of the form "${identifier}" is
+    expanded to the value of the variable named "identifier". The variable
+    must be defined PRIOR to the definition of the rule in the configuration
+    file. Given the previous example of variable keyword, you can use:
+
+      rule	"source is intranet"	"src ${intranet}"
+
+After you start jnettop, you can use the "f" key to select active filter used
+PRIOR to any packet processing. This filter is applied BEFORE any statistics
+are computed, so even the total BPS is computed only out of the packets, that
+pass the filter(!!).
+The pathname of configuraton file can be overrided by specifying -f command
+line parameter.
 
 -- libpcap dependency explanation --
 
@@ -90,5 +130,5 @@ jnettop consumes all available CPU time, but should behave nicely, so that
 it consumes all time up to 100%. Other processes should have theire appropriate
 time. This behaviour does not include Linux
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/README,v 1.6 2002-09-03 21:20:36 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/README,v 1.7 2002-10-16 20:02:51 merunka Exp $
 

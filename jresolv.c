@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.6 2002-08-31 18:40:00 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.7 2002-10-16 20:02:51 merunka Exp $
  * 
  */
 
@@ -71,7 +71,9 @@ gboolean resolveStreamIP(const gchar  *data, guint len, ntop_stream *stream, nto
 		return TRUE;
 	}
 	if ((ntohs(ip->ip_off) & 0x1fff) != 0) {
-		printf("ip_off!=0\n");
+		// FIXME: there is currently no proper implementation of
+		// handling fragmented packets.
+		// printf("ip_off!=0\n");
 		return TRUE;
 	}
 	data += hlen;

@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.15 2002-10-13 20:20:54 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.16 2002-10-16 20:02:51 merunka Exp $
  *
  */
 
@@ -57,12 +57,17 @@ GMutex		*resolverCacheMutex;
 GTrashStack	*freePacketStack = NULL;
 int		freePacketStackSize = 0;
 GMutex		*freePacketStackMutex;
+GMutex		*statusMutex;
+char		*statusMessage;
+GTimeVal	statusTimeout;
 
 char		*configFileName;
 GPtrArray	*bpfFilters;
 
 struct bpf_program	activeBPFFilter;
+char		*activeBPFFilterName;
 char		*newBPFFilter;
+char		*newBPFFilterName;
 
 GThread		*snifferThread;
 GThread		*sorterThread;
@@ -85,8 +90,10 @@ gchar 		line0FormatString[512], line1FormatString[512], line2FormatString[512];
 gboolean	onoffContentFiltering;
 gboolean	onoffBitValues;
 
-#define		DISPLAYMODE_NORMAL	0
-#define		DISPLAYMODE_BPFFILTERS	1
+gboolean	onoffSuspended;
+
+#define		DISPLAYMODE_NORMAL		0
+#define		DISPLAYMODE_BPFFILTERS		1
 
 int		displayMode = DISPLAYMODE_NORMAL;
 
@@ -329,8 +336,13 @@ void formatNumber(guint32 n, gchar *buf, int len) {
 }
 
 void drawStatus(guchar *msg) {
+	g_mutex_lock(statusMutex);
+	statusMessage = g_strdup(msg);
+	g_get_current_time(&statusTimeout);
+	g_time_val_add(&statusTimeout, 1000000);
+	g_mutex_unlock(statusMutex);
 	attron(A_BOLD);
-	mvprintw(2, 0, "%s", msg);
+	mvprintw(2, 0, "%s", statusMessage);
 	clrtoeol();
 	attroff(A_BOLD);
 	refresh();
@@ -350,8 +362,7 @@ void drawScreen() {
 		attrset(A_NORMAL);
 
 		mvprintw(0, 0, "time XX:XX:XX run XXX:XX:XX device XXXXXXXXXX bytes XXXXXXX pkts XXXXXXXXX");
-		mvprintw(1, 0, "                                               bps XXXXXXX@ strs XXXXXXXXX");
-		mvprintw(2, 0, "[q]uit                             [c]ontent filtering: XXX [b]ps=XXXXXXX ");
+		mvprintw(1, 0, "pkt [f]ilter: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX  bps XXXXXXX@ strs XXXXXXXXX");
 #if HAVE_PCAP_FINDALLDEVS
 		if (devices_count>1) {
 			mvprintw(2, 10, "[0]-[9] switch device");
@@ -372,6 +383,22 @@ void drawScreen() {
 		}
 		listWindow = newwin(activeLines-5, activeColumns, 5, 0);
 	}
+	g_mutex_lock(statusMutex);
+	if (statusMessage == NULL) {
+		mvprintw(2, 0, "[q]uit                             [c]ontent filtering: XXX [b]ps=XXXXXXX ");
+	} else {
+		GTimeVal tv;
+		attron(A_BOLD);
+		mvprintw(2, 0, statusMessage);
+		attroff(A_BOLD);
+		g_get_current_time(&tv);
+		if (tv.tv_sec >= statusTimeout.tv_sec) {
+			g_free(statusMessage);
+			statusMessage = NULL;
+		}
+	}
+	g_mutex_unlock(statusMutex);
+	clrtoeol();
 }
 
 void drawHeader() {
@@ -395,8 +422,11 @@ void drawHeader() {
 	mvprintw(1, 65, "%9d", streamArray->len);
 	formatNumber((onoffBitValues?8:1)*totalBPS, timeBuffer, 6);
 	mvprintw(1, 51, "%6s/s", timeBuffer);
-	mvprintw(2, 56, "%s", onoffContentFiltering?"on ":"off");
-	mvprintw(2, 66, "%s", onoffBitValues?"bits/s ":"bytes/s");
+	mvprintw(1, 14, "%-31.31s", activeBPFFilterName?activeBPFFilterName:"none");
+	if (!statusMessage) {
+		mvprintw(2, 56, "%s", onoffContentFiltering?"on ":"off");
+		mvprintw(2, 66, "%s", onoffBitValues?"bits/s ":"bytes/s");
+	}
 
 	attroff(A_BOLD);
 	
@@ -444,7 +474,8 @@ gpointer sorterThreadFunc(gpointer data) {
 		g_mutex_lock(streamArrayMutex);
 		if (streamArray->len > 0) {
 			updateBPS();
-			g_ptr_array_sort(streamArray, (GCompareFunc)compareStreamByStat);
+			if (!onoffSuspended)
+				g_ptr_array_sort(streamArray, (GCompareFunc)compareStreamByStat);
 		}
 		for (i=0,j=0; i<streamArray->len && j<lines; i++) {
 			ntop_stream *s = (ntop_stream *)g_ptr_array_index(streamArray, i);
@@ -566,6 +597,10 @@ gpointer displayThreadFunc(gpointer data) {
 			for (i=0; i<bpfFilters->len/2; i++) {
 				mvwprintw(listWindow, i+4, 5, "[%c] %s", 'a'+i, g_ptr_array_index(bpfFilters, i*2));
 			}
+			if (bpfFilters->len == 0) {
+				mvwprintw(listWindow, 6, 5, "You have no predefined filter rules. See README file for explanation");
+				mvwprintw(listWindow, 7, 5, "on how to predefine filter rules");
+			}
 			break;
 		}
 
@@ -574,9 +609,10 @@ gpointer displayThreadFunc(gpointer data) {
 		wnoutrefresh(listWindow);
 		refresh();
 
-		g_usleep(1000000);
 		i = getch();
-		if (i!=ERR) {
+		if (i==ERR) {
+			g_usleep(1000000);
+		} else {
 			switch (displayMode) {
 			case DISPLAYMODE_NORMAL:
 				switch (i) {
@@ -590,6 +626,13 @@ gpointer displayThreadFunc(gpointer data) {
 						break;
 					case 'b':
 						onoffBitValues = !onoffBitValues;
+						break;
+					case 's':
+						onoffSuspended = !onoffSuspended;
+						if (onoffSuspended)
+							drawStatus("Streams sorting suspended.");
+						else
+							drawStatus("Streams sorting resumed.");
 						break;
 					case 'f':
 						displayMode = DISPLAYMODE_BPFFILTERS;
@@ -616,10 +659,13 @@ gpointer displayThreadFunc(gpointer data) {
 			case DISPLAYMODE_BPFFILTERS:
 				if ((i == '.') || ((i >= 'a') && (i < 'a' + (bpfFilters->len/2)))) {
 					drawStatus("Please wait, cleaning up...");
-					if (i == '.')
+					if (i == '.') {
 						newBPFFilter = NULL;
-					else
+						newBPFFilterName = NULL;
+					} else {
 						newBPFFilter = g_ptr_array_index(bpfFilters, (i - 'a')*2 + 1);
+						newBPFFilterName = (char *) g_ptr_array_index(bpfFilters, (i - 'a')*2 );
+					}
 					newDevice = activeDevice;
 					activeDevice = NULL;
 					displayMode = DISPLAYMODE_NORMAL;
@@ -628,7 +674,6 @@ gpointer displayThreadFunc(gpointer data) {
 				break;
 			}
 		}
-		while (getch() != ERR) ;
 	}
 
 	threadCount --;
@@ -748,6 +793,8 @@ gpointer snifferThreadFunc(gpointer data) {
 						char BUF[PCAP_ERRBUF_SIZE + 128];
 						snprintf(BUF, PCAP_ERRBUF_SIZE + 128, "Filter not applied. setfilter(): %s", pcap_geterr(handle));
 						drawStatus(BUF);
+					} else {
+						activeBPFFilterName = newBPFFilterName;
 					}
 					isFilterUsed = TRUE;
 				}
@@ -997,6 +1044,8 @@ int main(int argc, char ** argv) {
 
 	bpfFilters = g_ptr_array_new();
 
+	statusMutex = g_mutex_new();
+
 	initDefaults();
 	readConfig();
 
@@ -1025,6 +1074,11 @@ int main(int argc, char ** argv) {
 
 		activeLines = 0;
 		activeColumns = 0;
+
+		if (statusMessage) {
+			g_free(statusMessage);
+			statusMessage = NULL;
+		}
 
 		clear();
 		drawScreen();
