@@ -53,9 +53,9 @@ GThreadPool	*resolverThreadPool;
 GTimeVal	startTime;
 GTimeVal	historyTime;
 
-guint64		totalBytes;
-guint64		totalPackets;
-guint64		totalBPS;
+guint32		totalBytes;
+guint32		totalPackets;
+guint32		totalBPS;
 
 GMutex		*displayStreamsMutex;
 ntop_stream	**displayStreams;
@@ -221,7 +221,7 @@ void	sortPacket(const ntop_packet *packet) {
 void	updateBPS() {
 	GTimeVal	currentDateTime;
 	uint		i;
-	guint64		bps = 0;
+	guint32		bps = 0;
 
 	g_get_current_time(&currentDateTime);
 	currentDateTime.tv_sec ++;
@@ -245,7 +245,7 @@ void	updateBPS() {
 
 int	activeLines=1, activeColumns=1;
 
-void formatNumber(guint64 n, gchar *buf, int len) {
+void formatNumber(guint32 n, gchar *buf, int len) {
 	gchar suffixes[] = {'b','k','m','g','t'};
 	gchar fmt[64];
 	int  mag = 0;

@@ -1,5 +1,6 @@
 2002-08-28	Jakub Skopal	<j@kubs.cz
 
+ * dropped dependency on uint32 in favour of broader portability
  * fixed FreeBSD build
  * fixed Debian build
 

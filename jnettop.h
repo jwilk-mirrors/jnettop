@@ -79,8 +79,8 @@ typedef struct __ntop_stream {
 	gboolean		direction;
 
 	// stream statistics information
-	guint64			srcbytes, dstbytes, totalbytes;
-	guint64			srcpackets, dstpackets, totalpackets;
+	guint32			srcbytes, dstbytes, totalbytes;
+	guint32			srcpackets, dstpackets, totalpackets;
 	GTimeVal		firstSeen;
 	GTimeVal		lastSeen;
 	guint			hbytes[HISTORY_LENGTH];
