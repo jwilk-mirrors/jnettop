@@ -1,5 +1,5 @@
 
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/acinclude.m4,v 1.8 2004-10-04 08:43:07 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/acinclude.m4,v 1.9 2004-10-04 09:06:48 merunka Exp $
 
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_5], [Set to 1 if gethostbyaddr_r takes 5 arguments])
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_7], [Set to 1 if gethostbyaddr_r takes 7 arguments])
@@ -250,6 +250,10 @@ dnl Done by Jakub Skopal <j@kubs.cz> on 2002-08-28.
 dnl
 AC_DEFUN(AC_NETTOP_CHECK_GETHOSTBYADDR_R,
 [
+  AC_ARG_ENABLE(multithreaded-resolver, AC_HELP_STRING([--disable-multithreaded-resolver],[do not try to use multithreaded resolver !!FreeBSD!!]), disable_multithreaded_resolver=yes)
+
+  if test "x$disable_multithreaded_resolver" != "xyes"; then
+
   dnl check for number of arguments to gethostbyaddr_r. it might take
   dnl either 5, 7, or 8 arguments.
   AC_CHECK_FUNCS(gethostbyaddr_r,[
@@ -305,6 +309,9 @@ rc = gethostbyaddr_r(address, length, type, &h,
 	    ac_cv_gethostbyaddr_args=8],[
 	    AC_MSG_RESULT(no)
 	    have_missing_r_funcs="$have_missing_r_funcs gethostbyaddr_r"])])])])
+
+	fi
+
 ])
 
 

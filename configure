@@ -849,6 +849,8 @@ Optional Features:
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --disable-dependency-tracking Speeds up one-time builds
   --enable-dependency-tracking  Do not reject slow dependency extractors
+  --disable-multithreaded-resolver
+                          do not try to use multithreaded resolver !!FreeBSD!!
   --disable-glibtest      do not try to compile and run a test GLIB program
 
 Some influential environment variables:
@@ -4495,6 +4497,14 @@ rm -f core core.* *.core gmon.out bb.out conftest$ac_exeext conftest.$ac_objext 
 fi
 
 
+  # Check whether --enable-multithreaded-resolver or --disable-multithreaded-resolver was given.
+if test "${enable_multithreaded_resolver+set}" = set; then
+  enableval="$enable_multithreaded_resolver"
+  disable_multithreaded_resolver=yes
+fi;
+
+  if test "x$disable_multithreaded_resolver" != "xyes"; then
+
 
 for ac_func in gethostbyaddr_r
 do
@@ -4756,6 +4766,9 @@ fi
 rm -f conftest.$ac_objext conftest.$ac_ext
 fi
 done
+
+
+	fi
 
 
 
