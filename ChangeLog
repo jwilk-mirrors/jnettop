@@ -3,6 +3,8 @@
  * --disable-multithreaded-resolver option added to configure
    script. this option is necessary for FreeBSD (and maybe
    other BSD unices)
+ * fixed more porting issues. solaris, freebsd, openbsd and
+   netbsd should also work now.
 
 2004-10-02	Jakub Skopal <j@kubs.cz>
 
@@ -126,4 +128,4 @@
 
  * initial release
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.23 2004-10-04 09:52:55 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.24 2004-10-05 07:10:16 merunka Exp $
