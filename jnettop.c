@@ -63,6 +63,7 @@ int		displayStreamsCount;
 gchar 		line0FormatString[128], line1FormatString[128], line2FormatString[128];
 
 gboolean	onoffContentFiltering;
+gboolean	onoffBitValues;
 
 WINDOW		*listWindow;
 
@@ -325,7 +326,7 @@ void drawScreen() {
 
 		mvprintw(0, 0, "time XX:XX:XX run XXX:XX:XX device XXXXXXXXXX bytes XXXXXXX pkts XXXXXXXXX");
 		mvprintw(1, 0, "                                               bps XXXXXXX@ strs XXXXXXXXX");
-		mvprintw(2, 0, "[q]uit                             [c]ontent filtering: ");
+		mvprintw(2, 0, "[q]uit                             [c]ontent filtering: XXX [b]ps=XXXXXXX ");
 #if HAVE_PCAP_FINDALLDEVS
 		if (devices_count>1) {
 			mvprintw(2, 10, "[0]-[9] switch device");
@@ -367,9 +368,10 @@ void drawHeader() {
 	mvprintw(0, 52, "%7s", timeBuffer);
 	mvprintw(0, 65, "%9d", totalPackets);
 	mvprintw(1, 65, "%9d", streamArray->len);
-	formatNumber(totalBPS, timeBuffer, 6);
+	formatNumber((onoffBitValues?8:1)*totalBPS, timeBuffer, 6);
 	mvprintw(1, 51, "%6s/s", timeBuffer);
 	mvprintw(2, 56, "%s", onoffContentFiltering?"on ":"off");
+	mvprintw(2, 66, "%s", onoffBitValues?"bits/s ":"bytes/s");
 
 	attroff(A_BOLD);
 	
@@ -503,7 +505,7 @@ gpointer displayThreadFunc(gpointer data) {
 			gchar *psrcaddr, *pdstaddr;
 			ntop_stream *s = displayStreams[i];
 			uint ibps = s->bps;
-			formatNumber(ibps, bps, 6);
+			formatNumber((onoffBitValues?8:1)*ibps, bps, 6);
 			g_strlcat(bps, "/s", sizeof(bps));
 			formatNumber(s->totalbytes, total, 6);
 			formatNumber(s->srcbytes, totalsrc, 6);
@@ -544,6 +546,9 @@ gpointer displayThreadFunc(gpointer data) {
 					break;
 				case 'c':
 					onoffContentFiltering = !onoffContentFiltering;
+					break;
+				case 'b':
+					onoffBitValues = !onoffBitValues;
 					break;
 				case '0':
 				case '1':
@@ -687,6 +692,7 @@ int main(int argc, char ** argv) {
 	char * deviceName = NULL;
 
 	onoffContentFiltering = TRUE;
+	onoffBitValues = FALSE;
 	
 	for (a=1; a<argc; a++) {
 		if (!strcmp(argv[a], "-v") || !strcmp(argv[a], "--version")) {
@@ -701,9 +707,14 @@ int main(int argc, char ** argv) {
 				"    -i, --interface name   capture packets on specified interface\n"
 				"    -d, --debug filename   write debug information into file\n"
 				"    -c, --content-filter   disable content filtering\n"
+				"    -b, --bit-units        show BPS in bits per second, not bytes per second\n"
 				"\n"
 				"Report bugs to <j@kubs.cz>\n");
 			exit(0);
+		}
+		if (!strcmp(argv[a], "-b") || !strcmp(argv[a], "--bit-units")) {
+			onoffBitValues = TRUE;
+			continue;
 		}
 		if (!strcmp(argv[a], "-c") || !strcmp(argv[a], "--content-filter")) {
 			onoffContentFiltering = FALSE;

@@ -1,3 +1,8 @@
+2002-08-31	Jakub Skopal	<j@kubs.cz>
+
+ * implemented bit/bytes per second switch (thanks to Martynas Bieliauskas
+   for idea)
+
 2002-08-29	Jakub Skopal	<j@kubs.cz>
 
  * implemented content filtering of HTTP and SMTP
@@ -8,7 +13,7 @@
 2002-08-28	Jakub Skopal	<j@kubs.cz>
 
  * fixed Solaris build
- * dropped dependency on uint32 in favour of broader portability
+ * dropped dependency on uint64 in favour of broader portability
  * fixed FreeBSD build
  * fixed Debian build
 
