@@ -4505,6 +4505,18 @@ fi;
 
   if test "x$disable_multithreaded_resolver" != "xyes"; then
 
+  if uname -a | grep "FreeBSD" > /dev/null 2>&1; then
+    echo "**********************************************************************"
+    echo "**  configure script detected, that you're using FreeBSD            **"
+    echo "**  5.1-RELEASE and maybe others have been found to contain         **"
+    echo "**  bogus implementation of gethostbyaddr_r function.               **"
+    echo "**                                                                  **"
+    echo "**  IN CASE YOU ENCOUNTER ANY Bus Error OR SegFault PROBLEMS WITH   **"
+    echo "**  jnettop, please specify --disable-multithreaded-resolver        **"
+    echo "**  option to configure script!!                                    **"
+    echo "**********************************************************************"
+  fi
+
 
 for ac_func in gethostbyaddr_r
 do

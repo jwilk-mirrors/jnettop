@@ -1,5 +1,5 @@
 
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/acinclude.m4,v 1.9 2004-10-04 09:06:48 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/acinclude.m4,v 1.10 2004-10-04 09:40:49 merunka Exp $
 
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_5], [Set to 1 if gethostbyaddr_r takes 5 arguments])
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_7], [Set to 1 if gethostbyaddr_r takes 7 arguments])
@@ -253,6 +253,18 @@ AC_DEFUN(AC_NETTOP_CHECK_GETHOSTBYADDR_R,
   AC_ARG_ENABLE(multithreaded-resolver, AC_HELP_STRING([--disable-multithreaded-resolver],[do not try to use multithreaded resolver !!FreeBSD!!]), disable_multithreaded_resolver=yes)
 
   if test "x$disable_multithreaded_resolver" != "xyes"; then
+
+  if uname -a | grep "FreeBSD" > /dev/null 2>&1; then
+    echo "**********************************************************************"
+    echo "**  configure script detected, that you're using FreeBSD            **"
+    echo "**  5.1-RELEASE and maybe others have been found to contain         **"
+    echo "**  bogus implementation of gethostbyaddr_r function.               **"
+    echo "**                                                                  **"
+    echo "**  IN CASE YOU ENCOUNTER ANY Bus Error OR SegFault PROBLEMS WITH   **"
+    echo "**  jnettop, please specify --disable-multithreaded-resolver        **"
+    echo "**  option to configure script!!                                    **"
+    echo "**********************************************************************"
+  fi
 
   dnl check for number of arguments to gethostbyaddr_r. it might take
   dnl either 5, 7, or 8 arguments.
