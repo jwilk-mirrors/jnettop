@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.24 2004-09-30 17:46:04 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.25 2004-10-01 09:39:00 merunka Exp $
  *
  */
 
@@ -164,7 +164,7 @@ const char * address2String(int af, const ntop_mutableaddress *src, char *dst, s
 		tmp = inet_ntoa(src->addr4);
 		break;
 	case AF_INET6:
-		*dst = '\0'; //TODO: alternative algorithm to resolve IPv6 address on systems not supporting inet_ntop.
+		g_snprintf(dst, cnt, "ipv6-res.-n/a"); //TODO: find an alternative way to resolve IPv6
 		return dst;
 	}
 	if (tmp && strlen(tmp)<cnt-1) {
@@ -248,7 +248,11 @@ void checkDevices() {
 	for (i=0; i<devices_count; i++) {
 		strncpy(ifr.ifr_name, devices[i].name, IFNAMSIZ);
 		ifr.ifr_hwaddr.sa_family = AF_UNSPEC;
+#ifdef SIOCGIFHWADDR
 		if (ioctl(s, SIOCGIFHWADDR, &ifr) == -1) {
+#else
+		if (ioctl(s, SIOCGIFADDR, &ifr) == -1) {
+#endif
 			fprintf(stderr, "Could not get HW address of interface %s: %s\n", devices[i].name, strerror(errno));
 		} else {
 			memcpy(&devices[i].hwaddr, &ifr.ifr_hwaddr, sizeof(struct sockaddr));
