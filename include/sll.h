@@ -1,4 +1,7 @@
 /*-
+ *
+ * $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/include/sll.h,v 1.3 2002-08-31 17:15:03 merunka Exp $
+ * 
  * Copyright (c) 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997
  *	The Regents of the University of California.  All rights reserved.
  *

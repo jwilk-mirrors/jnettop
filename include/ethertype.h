@@ -1,4 +1,6 @@
 /*
+ * $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/include/ethertype.h,v 1.2 2002-08-31 17:15:03 merunka Exp $
+ * 
  * Copyright (c) 1993, 1994, 1996
  *	The Regents of the University of California.  All rights reserved.
  *

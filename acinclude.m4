@@ -1,3 +1,6 @@
+
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/acinclude.m4,v 1.4 2002-08-31 17:15:03 merunka Exp $
+
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_5], [Set to 1 if gethostbyaddr_r takes 5 arguments])
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_7], [Set to 1 if gethostbyaddr_r takes 7 arguments])
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_8], [Set to 1 if gethostbyaddr_r takes 8 arguments])

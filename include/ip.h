@@ -1,4 +1,6 @@
 /*
+ * $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/include/ip.h,v 1.3 2002-08-31 17:15:03 merunka Exp $
+ * 
  * Copyright (c) 1982, 1986, 1993
  *	The Regents of the University of California.  All rights reserved.
  *

@@ -1,3 +1,5 @@
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.spec,v 1.3 2002-08-31 17:15:03 merunka Exp $
+
 Summary: Network traffic tracker
 Name: jnettop
 Version: 0.3

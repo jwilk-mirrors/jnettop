@@ -16,6 +16,8 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.5 2002-08-31 17:15:03 merunka Exp $
+ * 
  */
 
 #include "jnettop.h"
