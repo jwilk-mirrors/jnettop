@@ -20,7 +20,7 @@
 
 #include "jnettop.h"
 
-gchar 	*NTOP_PROTOCOLS[] = { "UNK.", "IP", "TCP", "UDP", "ARP" };
+gchar 	*NTOP_PROTOCOLS[] = { "UNK.", "IP", "TCP", "UDP", "ARP", "ETHER", "SLL" };
 
 char		pcap_errbuf[PCAP_ERRBUF_SIZE];
 
@@ -60,7 +60,9 @@ guint32		totalBPS;
 GMutex		*displayStreamsMutex;
 ntop_stream	**displayStreams;
 int		displayStreamsCount;
-gchar 		line0FormatString[128], line1FormatString[128];
+gchar 		line0FormatString[128], line1FormatString[128], line2FormatString[128];
+
+gboolean	onoffContentFiltering;
 
 WINDOW		*listWindow;
 
@@ -98,6 +100,8 @@ void debug(const char *format, ...) {
 
 void freeStream(gpointer ptr) {
 	ntop_stream *s = (ntop_stream *)ptr;
+	if (s->filterDataFreeFunc)
+		s->filterDataFreeFunc(s);
 	g_free(s);
 }
 
@@ -184,10 +188,11 @@ gboolean compareResolvEntry(gconstpointer a, gconstpointer b) {
 void	sortPacket(const ntop_packet *packet) {
 	ntop_stream	packetStream;
 	ntop_stream	*stat;
+	ntop_payload_info	payloadInfo[NTOP_PROTO_MAX];
 	totalBytes += packet->header.len;
 	totalPackets ++;
 	memset(&packetStream, 0, sizeof(ntop_stream));
-	resolveStream(packet, &packetStream);
+	resolveStream(packet, &packetStream, payloadInfo);
 	g_mutex_lock(streamTableMutex);
 	stat = (ntop_stream *)g_hash_table_lookup(streamTable, &packetStream);
 	if (stat == NULL) {
@@ -198,6 +203,9 @@ void	sortPacket(const ntop_packet *packet) {
 		g_hash_table_insert(streamTable, stat, stat);
 		g_mutex_unlock(streamTableMutex);
 
+		if (onoffContentFiltering)
+			assignDataFilter(stat);
+		
 		g_mutex_lock(resolverCacheMutex);
 		rentry = g_hash_table_lookup(resolverCache, GUINT_TO_POINTER((guint)packetStream.src.s_addr));
 		if (rentry == NULL) {
@@ -239,6 +247,10 @@ void	sortPacket(const ntop_packet *packet) {
 	*stat->hbytes += packet->header.len;
 	stat->hbytessum += packet->header.len;
 	g_get_current_time(&stat->lastSeen);
+
+	if (onoffContentFiltering && stat->filterDataFunc) {
+		stat->filterDataFunc(stat, packet, packetStream.direction, payloadInfo);
+	}
 }
 
 void	updateBPS() {
@@ -313,7 +325,7 @@ void drawScreen() {
 
 		mvprintw(0, 0, "time XX:XX:XX run XXX:XX:XX device XXXXXXXXXX bytes XXXXXXX pkts XXXXXXXXX");
 		mvprintw(1, 0, "                                               bps XXXXXXX@ strs XXXXXXXXX");
-		mvprintw(2, 0, "[q]uit");
+		mvprintw(2, 0, "[q]uit                             [c]ontent filtering: ");
 #if HAVE_PCAP_FINDALLDEVS
 		if (devices_count>1) {
 			mvprintw(2, 10, "[0]-[9] switch device");
@@ -326,6 +338,7 @@ void drawScreen() {
 			int windowColumns = hostColumns / 2 - 2;
 			sprintf(line0FormatString, "%%-%d.%ds %*c%%8s", windowColumns*2+1, windowColumns*2+1, hostColumns-2*windowColumns-2, ' ');
 			sprintf(line1FormatString, " %%-15.15s %%5.5s %%6.6s%*c%%-15.15s %%5.5s%*c%%6.6s %%6.6s %%%d.%ds", windowColumns-30, ' ', windowColumns-30, ' ',activeColumns-2*windowColumns-4, activeColumns-2*windowColumns-4);
+			sprintf(line2FormatString, "  %%-%d.%ds", activeColumns-3, activeColumns-3);
 		}
 
 		if (listWindow) {
@@ -356,6 +369,7 @@ void drawHeader() {
 	mvprintw(1, 65, "%9d", streamArray->len);
 	formatNumber(totalBPS, timeBuffer, 6);
 	mvprintw(1, 51, "%6s/s", timeBuffer);
+	mvprintw(2, 56, "%s", onoffContentFiltering?"on ":"off");
 
 	attroff(A_BOLD);
 	
@@ -512,6 +526,7 @@ gpointer displayThreadFunc(gpointer data) {
 			mvwprintw(listWindow, i*3, 0, line0FormatString, linebuffer, bps);
 			mvwchgat(listWindow, i*3, 0, activeColumns-8, A_BOLD, 0, NULL);
 			mvwprintw(listWindow, i*3+1, 0, line1FormatString, srcaddr, srcport, NTOP_PROTOCOLS[s->proto], dstaddr, dstport, totalsrc, totaldst, total);
+			mvwprintw(listWindow, i*3+2, 0, line2FormatString, s->filterDataString);
 		}
 		g_mutex_unlock(displayStreamsMutex);
 
@@ -526,6 +541,9 @@ gpointer displayThreadFunc(gpointer data) {
 				case 'Q':
 					drawStatus("Please wait, shutting down...");
 					activeDevice = NULL;
+					break;
+				case 'c':
+					onoffContentFiltering = !onoffContentFiltering;
 					break;
 				case '0':
 				case '1':
@@ -668,6 +686,7 @@ int main(int argc, char ** argv) {
 	int a;
 	char * deviceName = NULL;
 
+	onoffContentFiltering = TRUE;
 	
 	for (a=1; a<argc; a++) {
 		if (!strcmp(argv[a], "-v") || !strcmp(argv[a], "--version")) {
@@ -681,9 +700,14 @@ int main(int argc, char ** argv) {
 				"    -v, --version          display version information\n"
 				"    -i, --interface name   capture packets on specified interface\n"
 				"    -d, --debug filename   write debug information into file\n"
+				"    -c, --content-filter   disable content filtering\n"
 				"\n"
 				"Report bugs to <j@kubs.cz>\n");
 			exit(0);
+		}
+		if (!strcmp(argv[a], "-c") || !strcmp(argv[a], "--content-filter")) {
+			onoffContentFiltering = FALSE;
+			continue;
 		}
 		if (!strcmp(argv[a], "-i") || !strcmp(argv[a], "--interface")) {
 			if (a+1>=argc) {

@@ -1,5 +1,7 @@
 2002-08-29	Jakub Skopal	<j@kubs.cz>
 
+ * implemented content filtering of HTTP and SMTP
+ * added content filtering
  * removed dependency on inet_ntop
  * fixed Solaris 7 build
 

@@ -49,8 +49,10 @@
 #include <time.h>
 #include <netdb.h>
 
-#define HISTORY_LENGTH		5
-#define FREEPACKETSTACK_PEEK	50
+#define HISTORY_LENGTH			5
+#define FREEPACKETSTACK_PEEK		50
+#define FILTER_DATA_STRING_LENGTH	256
+#define FILTER_DATA_STRING_LENGTH_S	"255"
 
 typedef struct __ntop_device {
 	gchar	*name;
@@ -68,6 +70,11 @@ typedef struct __ntop_resolv_entry {
 } ntop_resolv_entry;
 
 struct __ntop_stream;
+struct __ntop_payload_info;
+struct __ntop_packet;
+
+typedef void (*FilterDataFunc) (struct __ntop_stream *stream, const struct __ntop_packet *packet, gboolean direction, const struct __ntop_payload_info *pi);
+typedef void (*FilterDataFreeFunc) (struct __ntop_stream *stream);
 
 typedef struct __ntop_stream {
 	// stream header information
@@ -95,16 +102,42 @@ typedef struct __ntop_stream {
 	guint			dead;
 	guint			displayed;
 
+	// filter data information
+	guchar			filterDataString[FILTER_DATA_STRING_LENGTH];
+	FilterDataFunc		filterDataFunc;
+	FilterDataFreeFunc	filterDataFreeFunc;
+	guchar			*filterData;
 } ntop_stream;
+
+#define	SET_FILTER_DATA_STRING(stream, string) { \
+		memset((stream)->filterDataString, 0, FILTER_DATA_STRING_LENGTH); \
+		g_strlcpy((stream)->filterDataString, string, FILTER_DATA_STRING_LENGTH); \
+	}
+
+#define SET_FILTER_DATA_STRING_2(stream, format, arg0, arg1) { \
+		memset((stream)->filterDataString, 0, FILTER_DATA_STRING_LENGTH); \
+		g_snprintf((stream)->filterDataString, FILTER_DATA_STRING_LENGTH, format, arg0, arg1); \
+	}
+
+typedef struct __ntop_payload_info {
+	const gchar *		data;
+	guint			len;
+} ntop_payload_info;
 
 #define	NTOP_PROTO_UNKNOWN	0
 #define	NTOP_PROTO_IP		1
 #define	NTOP_PROTO_TCP		2
 #define	NTOP_PROTO_UDP		3
 #define	NTOP_PROTO_ARP		4
+#define NTOP_PROTO_ETHER	5
+#define NTOP_PROTO_SLL		6
+#define NTOP_PROTO_MAX		16
 
 extern gchar  *NTOP_PROTOCOLS[];
 
 // forward declaration of jresolv exports
-gboolean	resolveStream(const ntop_packet *packet, ntop_stream *stream);
+gboolean	resolveStream(const ntop_packet *packet, ntop_stream *stream, ntop_payload_info *payloads);
+
+// forward declaration of jfilter exports
+void		assignDataFilter(ntop_stream *stream);
 

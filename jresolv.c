@@ -20,7 +20,7 @@
 
 #include "jnettop.h"
 
-gboolean resolveStreamTCP(const gchar  *data, guint len, ntop_stream *stream) {
+gboolean resolveStreamTCP(const gchar *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
 	guint	hlen;
 	const struct tcphdr *tcp = (const struct tcphdr *)data;
 	if (len < sizeof(struct tcphdr)) {
@@ -33,10 +33,12 @@ gboolean resolveStreamTCP(const gchar  *data, guint len, ntop_stream *stream) {
 	stream->srcport = ntohs(tcp->th_sport);
 	stream->dstport = ntohs(tcp->th_dport);
 	stream->proto = NTOP_PROTO_TCP;
+	payloads[NTOP_PROTO_TCP].data = data + hlen;
+	payloads[NTOP_PROTO_TCP].len = len - hlen;
 	return TRUE;
 }
 
-gboolean resolveStreamUDP(const gchar  *data, guint len, ntop_stream *stream) {
+gboolean resolveStreamUDP(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
 	guint	hlen;
 	const struct udphdr *udp = (const struct udphdr *)data;
 	if (len < sizeof(struct udphdr)) {
@@ -45,10 +47,12 @@ gboolean resolveStreamUDP(const gchar  *data, guint len, ntop_stream *stream) {
 	stream->srcport = ntohs(udp->uh_sport);
 	stream->dstport = ntohs(udp->uh_dport);
 	stream->proto = NTOP_PROTO_UDP;
+	payloads[NTOP_PROTO_UDP].data = data + sizeof(struct udphdr);
+	payloads[NTOP_PROTO_UDP].len = len - sizeof(struct udphdr);
 	return TRUE;
 }
 
-gboolean resolveStreamIP(const gchar  *data, guint len, ntop_stream *stream) {
+gboolean resolveStreamIP(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
 	guint	hlen;
 	const struct ip	*ip = (const struct ip *)data;
 	if (len < sizeof(struct ip)) {
@@ -71,21 +75,24 @@ gboolean resolveStreamIP(const gchar  *data, guint len, ntop_stream *stream) {
 	}
 	data += hlen;
 	len -= hlen;
+	payloads[NTOP_PROTO_IP].data = data;
+	payloads[NTOP_PROTO_IP].len = len;
+	
 	switch (ip->ip_p) {
 		case IPPROTO_TCP:
-			return resolveStreamTCP(data, len, stream);
+			return resolveStreamTCP(data, len, stream, payloads);
 		case IPPROTO_UDP:
-			return resolveStreamUDP(data, len, stream);
+			return resolveStreamUDP(data, len, stream, payloads);
 	}
 	return TRUE;
 }
 
-gboolean resolveStreamARP(const gchar  *data, guint len, ntop_stream *stream) {
+gboolean resolveStreamARP(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
 	stream->proto = NTOP_PROTO_ARP;
 	return TRUE;
 }
 
-gboolean resolveStreamEther(const gchar  *data, guint len, ntop_stream *stream) {
+gboolean resolveStreamEther(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
 	if (len<NTOP_ETHER_HDRLEN) {
 		return FALSE;
 	} else
@@ -93,12 +100,15 @@ gboolean resolveStreamEther(const gchar  *data, guint len, ntop_stream *stream) 
 		guint16 proto = ntohs(((struct ntop_ether_header*)data)->ether_type);
 		data += NTOP_ETHER_HDRLEN;
 		len -= NTOP_ETHER_HDRLEN;
+		stream->proto = NTOP_PROTO_ETHER;
+		payloads[NTOP_PROTO_ETHER].data = data;
+		payloads[NTOP_PROTO_ETHER].len = len;
 		switch (proto) {
 		case ETHERTYPE_IP:
-			return resolveStreamIP(data, len, stream);
+			return resolveStreamIP(data, len, stream, payloads);
 			break;
 		case ETHERTYPE_ARP:
-			return resolveStreamARP(data, len, stream);
+			return resolveStreamARP(data, len, stream, payloads);
 			break;
 		default:
 			debug("Unknown ETHERNET protocol: %d\n", proto);
@@ -109,7 +119,7 @@ gboolean resolveStreamEther(const gchar  *data, guint len, ntop_stream *stream) 
 }
 
 #ifdef linux
-gboolean resolveStreamSLL(const gchar  *data, guint len, ntop_stream *stream) {
+gboolean resolveStreamSLL(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
 	if (len<SLL_HDR_LEN) {
 		return FALSE;
 	} else
@@ -117,15 +127,18 @@ gboolean resolveStreamSLL(const gchar  *data, guint len, ntop_stream *stream) {
 		guint16 proto = ntohs(((struct sll_header*)data)->sll_protocol);
 		data += SLL_HDR_LEN;
 		len -= SLL_HDR_LEN;
+		stream->proto = NTOP_PROTO_SLL;
+		payloads[NTOP_PROTO_SLL].data = data;
+		payloads[NTOP_PROTO_SLL].len = len;
 		switch (proto) {
 		case ETH_P_802_2:
-			return resolveStreamEther(data, len, stream);
+			return resolveStreamEther(data, len, stream, payloads);
 			break;
 		case ETH_P_ARP:
-			return resolveStreamARP(data, len, stream);
+			return resolveStreamARP(data, len, stream, payloads);
 			break;
 		case ETH_P_IP:
-			return resolveStreamIP(data, len, stream);
+			return resolveStreamIP(data, len, stream, payloads);
 			break;
 		default:
 			debug("Unknown SLL protocol: %d\n", proto);
@@ -136,7 +149,7 @@ gboolean resolveStreamSLL(const gchar  *data, guint len, ntop_stream *stream) {
 }
 #endif
 
-gboolean resolveStream(const ntop_packet *packet, ntop_stream *stream) {
+gboolean resolveStream(const ntop_packet *packet, ntop_stream *stream, ntop_payload_info *payloads) {
 	guint		len = packet->header.caplen;
 	const gchar 	*data = packet->data;
 	gboolean	result;
@@ -144,14 +157,17 @@ gboolean resolveStream(const ntop_packet *packet, ntop_stream *stream) {
 
 	result = FALSE;
 
+	payloads[NTOP_PROTO_UNKNOWN].data = data;
+	payloads[NTOP_PROTO_UNKNOWN].len = len;
+
 	switch (packet->dataLink) {
 	case DLT_EN10MB:
-		result = resolveStreamEther(data, len, stream);
+		result = resolveStreamEther(data, len, stream, payloads);
 		break;
 #ifdef linux
 #ifdef DLT_LINUX_SLL
 	case DLT_LINUX_SLL:
-		result = resolveStreamSLL(data, len, stream);
+		result = resolveStreamSLL(data, len, stream, payloads);
 		break;
 #endif
 #endif

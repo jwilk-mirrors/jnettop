@@ -90,7 +90,7 @@ EXTRA_DIST = jnettop.spec
 
 bin_PROGRAMS = jnettop
 
-jnettop_SOURCES = jnettop.c jresolv.c jnettop.h include/ether.h include/ethertype.h include/ip.h include/tcp.h include/udp.h include/sll.h
+jnettop_SOURCES = jnettop.c jresolv.c jfilter.c jnettop.h include/ether.h include/ethertype.h include/ip.h include/tcp.h include/udp.h include/sll.h
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -99,7 +99,8 @@ CONFIG_CLEAN_FILES =
 bin_PROGRAMS = jnettop$(EXEEXT)
 PROGRAMS = $(bin_PROGRAMS)
 
-am_jnettop_OBJECTS = jnettop.$(OBJEXT) jresolv.$(OBJEXT)
+am_jnettop_OBJECTS = jnettop.$(OBJEXT) jresolv.$(OBJEXT) \
+	jfilter.$(OBJEXT)
 jnettop_OBJECTS = $(am_jnettop_OBJECTS)
 jnettop_LDADD = $(LDADD)
 jnettop_DEPENDENCIES =
@@ -111,7 +112,8 @@ CPPFLAGS = @CPPFLAGS@
 LIBS = @LIBS@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
-@AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/jnettop.Po ./$(DEPDIR)/jresolv.Po
+@AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/jfilter.Po ./$(DEPDIR)/jnettop.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/jresolv.Po
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
@@ -195,6 +197,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jfilter.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jnettop.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jresolv.Po@am__quote@
 

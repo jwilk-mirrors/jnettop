@@ -65,6 +65,16 @@ For portability description, please, see PORTING file. There is an up-to-date
 status of portability issues. Generally, I'd like jnettop to be working on
 any system, which has glib2, pcap and ncurses ports.
 
+-- content filtering --
+
+  (What the hell is that?)
+
+Jnettop attempts to "understand" what communication is in the TCP/UDP data and
+displays this information along the stream. For example it can recover URL from
+a HTTP request or addresses of ongoing SMTP session. Content filtering is
+enabled by default and can be disabled while running. There can be performance
+problems on a very busy server which would cause various packets to be dropped.
+
 Copyright (C) 2002 Jakub Skopal
 Portions of the package are taken from the tcpdump project and their rights are
 held by their respective owners stated in the beginning of the files.
