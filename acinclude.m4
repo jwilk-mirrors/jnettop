@@ -1,9 +1,14 @@
 
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/acinclude.m4,v 1.5 2002-08-31 18:40:00 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/acinclude.m4,v 1.6 2004-10-01 19:28:28 merunka Exp $
 
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_5], [Set to 1 if gethostbyaddr_r takes 5 arguments])
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_7], [Set to 1 if gethostbyaddr_r takes 7 arguments])
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_8], [Set to 1 if gethostbyaddr_r takes 8 arguments])
+AH_TEMPLATE([HAVE_PCAP_FREECODE_2], [Set to 1 if pcap_freecode takes 2 arguments])
+AH_TEMPLATE([HAVE_PCAP_FREECODE_1], [Set to 1 if pcap_freecode takes 1 argument])
+AH_TEMPLATE([HAVE_IP6_S6_ADDR32], [Set to 1 if struct in6_addr contains s6_addr32 member])
+AH_TEMPLATE([HAVE_IP6__S6_UN__S6_U32], [Set to 1 if struct in6_addr contains _S6_un._S6_u32 member])
+AH_TEMPLATE([HAVE_IP6___U6_ADDR___U6_ADDR32], [Set to 1 if struct in6_addr contains __u6_addr.__u6_addr32 member])
 AH_TEMPLATE([NEED_REENTRANT], [Set to 1 if gethostbyaddr_r requires _REENTRANT symbol to be defined])
 
 AC_DEFUN(AC_NETTOP_GCC_FLAGS,
@@ -161,6 +166,80 @@ exit (h == NULL ? 1 : 0); }],[
       ]
 )
 ])
+
+dnl
+dnl Try to discover struct in6_addr members
+dnl
+AC_DEFUN(AC_NETTOP_CHECK_IN6_ADDR,
+[
+  AC_MSG_CHECKING([if struct in6_addr contains s6_addr32 member])
+  AC_TRY_COMPILE([
+#include <netinet/in.h>],[
+struct in6_addr adr;
+adr.s6_addr32[0]=0;
+],[
+    AC_MSG_RESULT(yes)
+    AC_DEFINE(HAVE_IP6_S6_ADDR32)],[
+      AC_MSG_RESULT(no)
+      AC_MSG_CHECKING([if struct in6_addr contains _S6_un._S6_u32 member])
+      AC_TRY_COMPILE([
+#include <netinet/in.h>],[
+struct in6_addr adr;
+adr._S6_un._S6_u32[0]=0;
+],[
+        AC_MSG_RESULT(yes)
+	AC_DEFINE(HAVE_IP6__S6_UN__S6_U32)],[
+	  AC_MSG_RESULT(no)
+	  AC_MSG_CHECKING([if struct in6_addr contains __u6_addr.__u6_addr32 member])
+	  AC_TRY_COMPILE([
+#include <netinet/in.h>],[
+struct in6_addr adr;
+adr.__u6_addr.__u6_addr32[0]=0;
+],[
+            AC_MSG_RESULT(yes)
+	    AC_DEFINE(HAVE_IP6___U6_ADDR___U6_ADDR32)],[
+	      AC_MSG_RESULT(no)
+	      AC_MSG_ERROR([can't figure out members of struct in6_addr])
+	    ]
+	  )
+	]
+      )
+    ]
+  )
+])
+
+dnl
+dnl Find number of arguments of pcap_freecode
+dnl
+AC_DEFUN(AC_NETTOP_CHECK_PCAP_FREECODE,
+[
+  dnl check for number of arguments to pcap_freecode. it might take
+  dnl either 1 or 2.
+    AC_MSG_CHECKING(if pcap_freecode takes 2 arguments)
+    AC_TRY_COMPILE([
+#include <pcap.h>],[
+struct bpf_program *program;
+pcap_t *pcap;
+pcap_freecode(pcap, program);],[
+      AC_MSG_RESULT(yes)
+      AC_DEFINE(HAVE_PCAP_FREECODE_2)
+      ac_cv_pcap_freecode_args=2],[
+      AC_MSG_RESULT(no)
+      AC_MSG_CHECKING(if pcap_freecode takes 1 argument)
+      AC_TRY_COMPILE([
+#include <pcap.h>],[
+struct bpf_program *program;
+pcap_freecode(program);],[
+        AC_MSG_RESULT(yes)
+        AC_DEFINE(HAVE_PCAP_FREECODE_1)
+        ac_cv_pcap_freecode_args=1],[
+          AC_MSG_RESULT(no)
+          AC_MSG_ERROR([cannot discover number of arguments of pcap_freecode])
+        ]
+      )]
+    )]
+)
+
 
 dnl 
 dnl Copied from cURL package ;

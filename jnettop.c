@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.26 2004-10-01 09:47:53 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.27 2004-10-01 19:28:28 merunka Exp $
  *
  */
 
@@ -118,7 +118,7 @@ const char * validateBPFFilter(char *filter) {
 	if (pcap_compile(pcap, &program, filter, 0, 0xFFFFFFFF) == -1) {
 		ret = pcap_geterr(pcap);
 	} else {
-		pcap_freecode(&program);
+		NTOP_PCAP_FREECODE(pcap, &program);
 	}
 	pcap_close(pcap);
 	return ret;
@@ -1005,11 +1005,11 @@ gpointer snifferThreadFunc(gpointer data) {
 
 	while (1) {
 		if (device != activeDevice) {
+			if (isFilterUsed) {
+				NTOP_PCAP_FREECODE(handle, &activeBPFFilter);
+			}
 			if (device) {
 				pcap_close(handle);
-			}
-			if (isFilterUsed) {
-				pcap_freecode(&activeBPFFilter);
 			}
 			device = activeDevice;
 			if (!device) {

@@ -27,6 +27,15 @@
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
+/* Set to 1 if struct in6_addr contains s6_addr32 member */
+#undef HAVE_IP6_S6_ADDR32
+
+/* Set to 1 if struct in6_addr contains _S6_un._S6_u32 member */
+#undef HAVE_IP6__S6_UN__S6_U32
+
+/* Set to 1 if struct in6_addr contains __u6_addr.__u6_addr32 member */
+#undef HAVE_IP6___U6_ADDR___U6_ADDR32
+
 /* Define to 1 if you have the `ncurses' library (-lncurses). */
 #undef HAVE_LIBNCURSES
 
@@ -59,6 +68,12 @@
 
 /* Define to 1 if you have the `pcap_findalldevs' function. */
 #undef HAVE_PCAP_FINDALLDEVS
+
+/* Set to 1 if pcap_freecode takes 1 argument */
+#undef HAVE_PCAP_FREECODE_1
+
+/* Set to 1 if pcap_freecode takes 2 arguments */
+#undef HAVE_PCAP_FREECODE_2
 
 /* Define to 1 if you have the `pcap_setnonblock' function. */
 #undef HAVE_PCAP_SETNONBLOCK

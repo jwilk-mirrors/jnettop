@@ -69,10 +69,20 @@
 #define FILTER_DATA_STRING_LENGTH	256
 #define FILTER_DATA_STRING_LENGTH_S	"255"
 
-#ifdef s6_addr32
+#ifdef HAVE_IP6_S6_ADDR32
 # define ntop_s6_addr32	s6_addr32
-#else
+#elif HAVE_IP6___U6_ADDR___U6_ADDR32
+# define ntop_s6_addr32 __u6_addr.__u6_addr32
+#elif HAVE_IP6__S6_UN__S6_U32
 # define ntop_s6_addr32	_S6_un._S6_u32
+#else
+# error "Configure did not find the insides of struct in6_addr."
+#endif
+
+#if HAVE_PCAP_FREECODE_1
+# define NTOP_PCAP_FREECODE(a,b) pcap_freecode(b)
+#elif HAVE_PCAP_FREECODE_2
+# define NTOP_PCAP_FREECODE(a,b) pcap_freecode(a,b)
 #endif
 
 typedef struct __ntop_device {
