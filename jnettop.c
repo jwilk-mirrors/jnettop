@@ -685,6 +685,12 @@ int main(int argc, char ** argv) {
 	} else {
 		lookupDevices();
 	}
+
+	if (!devices_count) {
+		fprintf(stderr, "Autodiscovery found no devices. Specify device you want to watch with -i parameter\n");
+		exit(255);
+	}
+
 	newDevice = devices;
 
 	g_thread_init(NULL);
