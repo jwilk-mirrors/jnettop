@@ -353,6 +353,10 @@ void resolverThreadFunc(gpointer task, gpointer user_data) {
 
 #if HAVE_GETHOSTBYADDR_R_8
 	gethostbyaddr_r(&entry->addr, sizeof(struct in_addr), AF_INET, &shentry, buffer, 4096, &hentry, &e);
+#elif HAVE_GETHOSTBYADDR_R_7
+	hentry = gethostbyaddr_r(&entry->addr, sizeof(struct in_addr), AF_INET, &shentry, buffer, 4096, &e);
+#else
+# error "No suitable gethostbyaddr_r found by configure"
 #endif
 	if (!e) {
 		name = g_strdup(hentry->h_name);

@@ -43,6 +43,7 @@
 #include "tcp.h"
 #include "udp.h"
 #include "sll.h"
+#include <net/if.h>
 #include <netinet/if_ether.h>
 #include <ncurses.h>
 #include <time.h>
