@@ -53,7 +53,13 @@
 #include "sll.h"
 #include <net/if.h>
 #include <netinet/if_ether.h>
-#include <ncurses/ncurses.h>
+#if HAVE_NCURSES_H
+# include <ncurses.h>
+#elif HAVE_NCURSES_NCURSES_H
+# include <ncurses/ncurses.h>
+#else
+# error "No ncurses.h file found by configure."
+#endif
 #include <time.h>
 #include <netdb.h>
 #include <sys/ioctl.h>
