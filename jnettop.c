@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.22 2004-09-29 19:09:35 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.23 2004-09-30 08:06:00 merunka Exp $
  *
  */
 
@@ -35,7 +35,7 @@
 #endif
 
 gchar 	*NTOP_PROTOCOLS[] = { "UNK.", "IP", "TCP", "UDP", "ARP", "ETHER", 
-                              "SLL", "AGGR.", "IPv6", "TCP", "UDP" };
+                              "SLL", "AGGR.", "ICMP", "IP6", "TCP6", "UDP6", "ICMP6" };
 gchar 	*NTOP_AGGREGATION[] = { "none", "port", "host" };
 
 char		pcap_errbuf[PCAP_ERRBUF_SIZE];
@@ -731,6 +731,63 @@ void     clearStatistics() {
 	g_hash_table_foreach_remove(streamTable, (GHRFunc)removeStreamTableEntry, NULL);
 }
 
+void	doDisplayStreams() {
+	int i;
+	for (i=0; i<displayStreamsCount; i++) {
+		gchar srcaddr[INET6_ADDRSTRLEN + 1], dstaddr[INET6_ADDRSTRLEN + 1];
+		gchar srcport[10], dstport[10], srcbps[10], dstbps[10], bps[10];
+		gchar total[10], totalsrc[10], totaldst[10];
+		uint ibps;
+		gchar linebuffer[1024];
+		gchar *psrcaddr, *pdstaddr;
+		ntop_stream *s = displayStreams[i];
+		ibps = onoffPackets ? s->totalpps : s->totalbps;
+		formatNumber((onoffBitValues && onoffPackets?8:1)*ibps, bps, 6);
+		g_strlcat(bps, "/s", sizeof(bps));
+		ibps = onoffPackets ? s->srcpps : s->srcbps;
+		formatNumber((onoffBitValues && onoffPackets?8:1)*ibps, srcbps, 6);
+		g_strlcat(srcbps, "/s", sizeof(srcbps));
+		ibps = onoffPackets ? s->dstpps : s->dstbps;
+		formatNumber((onoffBitValues && onoffPackets?8:1)*ibps, dstbps, 6);
+		g_strlcat(dstbps, "/s", sizeof(dstbps));
+		formatNumber(onoffPackets ? s->totalpackets : s->totalbytes, total, 6);
+		formatNumber(onoffPackets ? s->srcpackets : s->srcbytes, totalsrc, 6);
+		formatNumber(onoffPackets ? s->dstpackets : s->dstbytes, totaldst, 6);
+		address2String(NTOP_AF(s->proto), &s->src, srcaddr, INET6_ADDRSTRLEN);
+		if (s->srcresolv == NULL || s->srcresolv->name == NULL) {
+			psrcaddr = srcaddr;
+		} else {
+			psrcaddr = s->srcresolv->name;
+		}
+		address2String(NTOP_AF(s->proto), &s->dst, dstaddr, INET6_ADDRSTRLEN);
+		if (s->dstresolv == NULL || s->dstresolv->name == NULL) {
+			pdstaddr = dstaddr;
+		} else {
+			pdstaddr = s->dstresolv->name;
+		}
+		if (s->srcport == -1)
+			strcpy(srcport, "AGGR.");
+		else
+			sprintf(srcport, "%d", s->srcport);
+		if (s->dstport == -1)
+			strcpy(dstport, "AGGR.");
+		else
+			sprintf(dstport, "%d", s->dstport);
+		sprintf(linebuffer, "%s <-> %s", psrcaddr, pdstaddr);
+		mvwprintw(listWindow, i*3, 0, line0FormatString, linebuffer, srcbps, dstbps, bps);
+		mvwchgat(listWindow, i*3, 0, activeColumns-25, A_BOLD, 0, NULL);
+		mvwprintw(listWindow, i*3+1, 0, line1FormatString, srcaddr, srcport, NTOP_PROTOCOLS[s->proto], dstaddr, dstport, totalsrc, totaldst, total);
+		mvwprintw(listWindow, i*3+2, 0, line2FormatString, s->filterDataString);
+	}
+}
+
+void    doDisplayWholeScreen() {
+	g_mutex_lock(displayStreamsMutex);
+	drawScreen();
+	drawHeader();
+	werase(listWindow);
+}
+
 gpointer displayThreadFunc(gpointer data) {
 	threadCount ++;
 	g_usleep(500000);
@@ -738,58 +795,11 @@ gpointer displayThreadFunc(gpointer data) {
 	while (activeDevice != NULL) {
 		int i;
 		
-		g_mutex_lock(displayStreamsMutex);
-		drawScreen();
-		drawHeader();
-		werase(listWindow);
+		doDisplayWholeScreen();
+
 		switch (displayMode) {
 		case DISPLAYMODE_NORMAL:
-			for (i=0; i<displayStreamsCount; i++) {
-				gchar srcaddr[INET6_ADDRSTRLEN + 1], dstaddr[INET6_ADDRSTRLEN + 1];
-				gchar srcport[10], dstport[10], srcbps[10], dstbps[10], bps[10];
-				gchar total[10], totalsrc[10], totaldst[10];
-				uint ibps;
-				gchar linebuffer[1024];
-				gchar *psrcaddr, *pdstaddr;
-				ntop_stream *s = displayStreams[i];
-				ibps = onoffPackets ? s->totalpps : s->totalbps;
-				formatNumber((onoffBitValues && onoffPackets?8:1)*ibps, bps, 6);
-				g_strlcat(bps, "/s", sizeof(bps));
-				ibps = onoffPackets ? s->srcpps : s->srcbps;
-				formatNumber((onoffBitValues && onoffPackets?8:1)*ibps, srcbps, 6);
-				g_strlcat(srcbps, "/s", sizeof(srcbps));
-				ibps = onoffPackets ? s->dstpps : s->dstbps;
-				formatNumber((onoffBitValues && onoffPackets?8:1)*ibps, dstbps, 6);
-				g_strlcat(dstbps, "/s", sizeof(dstbps));
-				formatNumber(onoffPackets ? s->totalpackets : s->totalbytes, total, 6);
-				formatNumber(onoffPackets ? s->srcpackets : s->srcbytes, totalsrc, 6);
-				formatNumber(onoffPackets ? s->dstpackets : s->dstbytes, totaldst, 6);
-				address2String(NTOP_AF(s->proto), &s->src, srcaddr, INET6_ADDRSTRLEN);
-				if (s->srcresolv == NULL || s->srcresolv->name == NULL) {
-					psrcaddr = srcaddr;
-				} else {
-					psrcaddr = s->srcresolv->name;
-				}
-				address2String(NTOP_AF(s->proto), &s->dst, dstaddr, INET6_ADDRSTRLEN);
-				if (s->dstresolv == NULL || s->dstresolv->name == NULL) {
-					pdstaddr = dstaddr;
-				} else {
-					pdstaddr = s->dstresolv->name;
-				}
-				if (s->srcport == -1)
-					strcpy(srcport, "AGGR.");
-				else
-					sprintf(srcport, "%d", s->srcport);
-				if (s->dstport == -1)
-					strcpy(dstport, "AGGR.");
-				else
-					sprintf(dstport, "%d", s->dstport);
-				sprintf(linebuffer, "%s <-> %s", psrcaddr, pdstaddr);
-				mvwprintw(listWindow, i*3, 0, line0FormatString, linebuffer, srcbps, dstbps, bps);
-				mvwchgat(listWindow, i*3, 0, activeColumns-25, A_BOLD, 0, NULL);
-				mvwprintw(listWindow, i*3+1, 0, line1FormatString, srcaddr, srcport, NTOP_PROTOCOLS[s->proto], dstaddr, dstport, totalsrc, totaldst, total);
-				mvwprintw(listWindow, i*3+2, 0, line2FormatString, s->filterDataString);
-			}
+			doDisplayStreams();
 			break;
 		case DISPLAYMODE_BPFFILTERS:
 			wattron(listWindow, A_BOLD);

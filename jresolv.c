@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.9 2004-09-29 19:09:35 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.10 2004-09-30 08:06:01 merunka Exp $
  * 
  */
 
@@ -54,6 +54,16 @@ gboolean resolveStreamUDP(const gchar  *data, guint len, ntop_stream *stream, nt
 	return TRUE;
 }
 
+gboolean resolveStreamICMP(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+	const struct icmp *icmp = (const struct icmp *)data;
+	if (len < sizeof(struct icmp)) {
+		return FALSE;
+	}
+	stream->proto = NTOP_PROTO_ICMP;
+	stream->srcport = stream->dstport = icmp->icmp_type;
+	return TRUE;
+}
+
 gboolean resolveStreamIP(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
 	guint	hlen;
 	const struct ip	*ip = (const struct ip *)data;
@@ -81,12 +91,16 @@ gboolean resolveStreamIP(const gchar  *data, guint len, ntop_stream *stream, nto
 	len -= hlen;
 	payloads[NTOP_PROTO_IP].data = data;
 	payloads[NTOP_PROTO_IP].len = len;
+
+	stream->srcport = stream->dstport = ip->ip_p;
 	
 	switch (ip->ip_p) {
 		case IPPROTO_TCP:
 			return resolveStreamTCP(data, len, stream, payloads);
 		case IPPROTO_UDP:
 			return resolveStreamUDP(data, len, stream, payloads);
+		case IPPROTO_ICMP:
+			return resolveStreamICMP(data, len, stream, payloads);
 	}
 	return TRUE;
 }
@@ -122,6 +136,16 @@ gboolean resolveStreamUDP6(const gchar  *data, guint len, ntop_stream *stream, n
 	return TRUE;
 }
 
+gboolean resolveStreamICMP6(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+	const struct icmp6_hdr *icmp = (const struct icmp6_hdr *)data;
+	if (len < sizeof(struct icmp6_hdr)) {
+		return FALSE;
+	}
+	stream->proto = NTOP_PROTO_ICMP6;
+	stream->srcport = stream->dstport = icmp->icmp6_type;
+	return TRUE;
+}
+
 gboolean resolveStreamIP6(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
 	const struct ip6_hdr	*ip = (const struct ip6_hdr *)data;
 	if (len < sizeof(struct ip6_hdr)) {
@@ -134,12 +158,17 @@ gboolean resolveStreamIP6(const gchar  *data, guint len, ntop_stream *stream, nt
 	len -= sizeof(struct ip6_hdr);
 	payloads[NTOP_PROTO_IP6].data = data;
 	payloads[NTOP_PROTO_IP6].len = len;
+
+	stream->srcport = stream->dstport = ip->ip6_nxt;
+
 	/* TODO: traverse and check all IPv6 headers */
 	switch (ip->ip6_nxt) {
 		case IPPROTO_TCP:
 			return resolveStreamTCP6(data, len, stream, payloads);
 		case IPPROTO_UDP:
 			return resolveStreamUDP6(data, len, stream, payloads);
+		case IPPROTO_ICMPV6:
+			return resolveStreamICMP6(data, len, stream, payloads);
 	}
 	return TRUE;
 }
@@ -147,6 +176,20 @@ gboolean resolveStreamIP6(const gchar  *data, guint len, ntop_stream *stream, nt
 gboolean resolveStreamARP(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
 	stream->proto = NTOP_PROTO_ARP;
 	return TRUE;
+}
+
+gboolean resolveStreamIPn(const ntop_packet *packet, const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+	const struct ip	*ip = (const struct ip *)data;
+	if (len < 4) {
+		return FALSE;
+	}
+	switch (IP_V(ip)) {
+		case 4:
+			return resolveStreamIP(data, len, stream, payloads);
+		case 6:
+			return resolveStreamIP6(data, len, stream, payloads);
+	}
+	return FALSE;
 }
 
 gboolean resolveStreamEther(const ntop_packet *packet, const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
@@ -242,6 +285,13 @@ gboolean resolveStream(const ntop_packet *packet, ntop_stream *stream, ntop_payl
 #ifdef DLT_LINUX_SLL
 	case DLT_LINUX_SLL:
 		result = resolveStreamSLL(packet, data, len, stream, payloads);
+		break;
+#endif
+#endif
+#ifdef linux
+#ifdef DLT_RAW
+	case DLT_RAW:
+		result = resolveStreamIPn(packet, data, len, stream, payloads);
 		break;
 #endif
 #endif

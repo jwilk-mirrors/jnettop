@@ -45,6 +45,8 @@
 #include "ip.h"
 #include "tcp.h"
 #include "udp.h"
+#include "icmp.h"
+#include "icmp6.h"
 #include "sll.h"
 #include <net/if.h>
 #include <netinet/if_ether.h>
@@ -152,12 +154,16 @@ typedef struct __ntop_payload_info {
 #define NTOP_PROTO_ETHER	5
 #define NTOP_PROTO_SLL		6
 #define NTOP_PROTO_AGGR		7
-#define NTOP_PROTO_IP6		8
-#define NTOP_PROTO_TCP6		9
-#define NTOP_PROTO_UDP6		10
+#define NTOP_PROTO_ICMP		8
+#define NTOP_PROTO_IPv6_BEGIN	9
+#define NTOP_PROTO_IP6		9
+#define NTOP_PROTO_TCP6		10
+#define NTOP_PROTO_UDP6		11
+#define NTOP_PROTO_ICMP6	12
+#define NTOP_PROTO_IPv6_END	12
 #define NTOP_PROTO_MAX		16
 
-#define NTOP_IS_IPV6(a)		((a) >= NTOP_PROTO_IP6 && (a) <= NTOP_PROTO_UDP6)
+#define NTOP_IS_IPV6(a)		((a) >= NTOP_PROTO_IPv6_BEGIN && (a) <= NTOP_PROTO_IPv6_END)
 #define NTOP_AF(a)		(NTOP_IS_IPV6(a) ? AF_INET6 : AF_INET)
 
 extern gchar  *NTOP_PROTOCOLS[];
