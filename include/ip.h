@@ -47,19 +47,19 @@
  * against negative integers quite easily, and fail in subtle ways.
  */
 struct ip {
-	u_int8_t	ip_vhl;		/* header length, version */
+	guint8	ip_vhl;		/* header length, version */
 #define IP_V(ip)	(((ip)->ip_vhl & 0xf0) >> 4)
 #define IP_HL(ip)	((ip)->ip_vhl & 0x0f)
-	u_int8_t	ip_tos;		/* type of service */
-	u_int16_t	ip_len;		/* total length */
-	u_int16_t	ip_id;		/* identification */
-	u_int16_t	ip_off;		/* fragment offset field */
+	guint8	ip_tos;		/* type of service */
+	guint16	ip_len;		/* total length */
+	guint16	ip_id;		/* identification */
+	guint16	ip_off;		/* fragment offset field */
 #define	IP_DF 0x4000			/* dont fragment flag */
 #define	IP_MF 0x2000			/* more fragments flag */
 #define	IP_OFFMASK 0x1fff		/* mask for fragmenting bits */
-	u_int8_t	ip_ttl;		/* time to live */
-	u_int8_t	ip_p;		/* protocol */
-	u_int16_t	ip_sum;		/* checksum */
+	guint8	ip_ttl;		/* time to live */
+	guint8	ip_p;		/* protocol */
+	guint16	ip_sum;		/* checksum */
 	struct	in_addr ip_src,ip_dst;	/* source and dest address */
 };
 
@@ -118,17 +118,17 @@ struct ip {
  * Time stamp option structure.
  */
 struct	ip_timestamp {
-	u_int8_t	ipt_code;	/* IPOPT_TS */
-	u_int8_t	ipt_len;	/* size of structure (variable) */
-	u_int8_t	ipt_ptr;	/* index of current entry */
-	u_int8_t	ipt_oflwflg;	/* flags, overflow counter */
+	guint8	ipt_code;	/* IPOPT_TS */
+	guint8	ipt_len;	/* size of structure (variable) */
+	guint8	ipt_ptr;	/* index of current entry */
+	guint8	ipt_oflwflg;	/* flags, overflow counter */
 #define IPTS_OFLW(ip)	(((ipt)->ipt_oflwflg & 0xf0) >> 4)
 #define IPTS_FLG(ip)	((ipt)->ipt_oflwflg & 0x0f)
 	union ipt_timestamp {
-		u_int32_t ipt_time[1];
+		guint32 ipt_time[1];
 		struct	ipt_ta {
 			struct in_addr ipt_addr;
-			u_int32_t ipt_time;
+			guint32 ipt_time;
 		} ipt_ta[1];
 	} ipt_timestamp;
 };

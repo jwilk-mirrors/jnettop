@@ -33,19 +33,19 @@
  *	@(#)tcp.h	8.1 (Berkeley) 6/10/93
  */
 
-typedef	u_int32_t	tcp_seq;
+typedef	guint32	tcp_seq;
 /*
  * TCP header.
  * Per RFC 793, September, 1981.
  */
 struct tcphdr {
-	u_int16_t	th_sport;		/* source port */
-	u_int16_t	th_dport;		/* destination port */
+	guint16	th_sport;		/* source port */
+	guint16	th_dport;		/* destination port */
 	tcp_seq		th_seq;			/* sequence number */
 	tcp_seq		th_ack;			/* acknowledgement number */
-	u_int8_t	th_offx2;		/* data offset, rsvd */
+	guint8	th_offx2;		/* data offset, rsvd */
 #define TH_OFF(th)	(((th)->th_offx2 & 0xf0) >> 4)
-	u_int8_t	th_flags;
+	guint8	th_flags;
 #define	TH_FIN	0x01
 #define	TH_SYN	0x02
 #define	TH_RST	0x04
@@ -54,9 +54,9 @@ struct tcphdr {
 #define	TH_URG	0x20
 #define TH_ECNECHO	0x40	/* ECN Echo */
 #define TH_CWR		0x80	/* ECN Cwnd Reduced */
-	u_int16_t	th_win;			/* window */
-	u_int16_t	th_sum;			/* checksum */
-	u_int16_t	th_urp;			/* urgent pointer */
+	guint16	th_win;			/* window */
+	guint16	th_sum;			/* checksum */
+	guint16	th_urp;			/* urgent pointer */
 };
 
 #define	TCPOPT_EOL		0
