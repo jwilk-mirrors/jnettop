@@ -39,6 +39,7 @@
 #include <arpa/inet.h>
 #include <pcap.h>
 #include <glib.h>
+#include <errno.h>
 #include "ether.h"
 #include "ethertype.h"
 #include "ip.h"
@@ -144,4 +145,5 @@ gboolean	resolveStream(const ntop_packet *packet, ntop_stream *stream, ntop_payl
 void		assignDataFilter(ntop_stream *stream);
 
 // forward declaration of jnettop exports
-void debug(const char *format, ...);
+void		debug(const char *format, ...);
+

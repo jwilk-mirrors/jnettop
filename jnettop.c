@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.14 2002-09-03 21:05:30 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.15 2002-10-13 20:20:54 merunka Exp $
  *
  */
 
@@ -58,6 +58,12 @@ GTrashStack	*freePacketStack = NULL;
 int		freePacketStackSize = 0;
 GMutex		*freePacketStackMutex;
 
+char		*configFileName;
+GPtrArray	*bpfFilters;
+
+struct bpf_program	activeBPFFilter;
+char		*newBPFFilter;
+
 GThread		*snifferThread;
 GThread		*sorterThread;
 GThread		*processorThread;
@@ -78,6 +84,11 @@ gchar 		line0FormatString[512], line1FormatString[512], line2FormatString[512];
 
 gboolean	onoffContentFiltering;
 gboolean	onoffBitValues;
+
+#define		DISPLAYMODE_NORMAL	0
+#define		DISPLAYMODE_BPFFILTERS	1
+
+int		displayMode = DISPLAYMODE_NORMAL;
 
 WINDOW		*listWindow;
 
@@ -406,26 +417,15 @@ void resolverThreadFunc(gpointer task, gpointer user_data) {
 
 #if HAVE_GETHOSTBYADDR_R_8
 	gethostbyaddr_r(&entry->addr, sizeof(struct in_addr), AF_INET, &shentry, buffer, 4096, &hentry, &e);
-	if (!e) {
-		name = g_strdup(hentry->h_name);
-		entry->name = name;
-	}
 #elif HAVE_GETHOSTBYADDR_R_7
 	hentry = gethostbyaddr_r(&entry->addr, sizeof(struct in_addr), AF_INET, &shentry, buffer, 4096, &e);
+#else
+# error "No suitable gethostbyaddr_r found by configure"
+#endif
 	if (!e) {
 		name = g_strdup(hentry->h_name);
 		entry->name = name;
 	}
-#else
-	static GStaticMutex mutex = G_STATIC_MUTEX_INIT;
-	g_static_mutex_lock(&mutex);
-	hentry = gethostbyaddr((const char *)&entry->addr, sizeof(struct in_addr), AF_INET);
-	if (hentry) {
-		name = g_strdup(hentry->h_name);
-		entry->name = name;
-	}
-	g_static_mutex_unlock(&mutex);
-#endif
 }
 
 gpointer sorterThreadFunc(gpointer data) {
@@ -524,37 +524,51 @@ gpointer displayThreadFunc(gpointer data) {
 		drawScreen();
 		drawHeader();
 		werase(listWindow);
-		for (i=0; i<displayStreamsCount; i++) {
-			gchar srcaddr[20], dstaddr[20], srcport[10], dstport[10], bps[10], total[10], totalsrc[10], totaldst[10];
-			gchar linebuffer[1024];
-			gchar *psrcaddr, *pdstaddr;
-			ntop_stream *s = displayStreams[i];
-			uint ibps = s->bps;
-			formatNumber((onoffBitValues?8:1)*ibps, bps, 6);
-			g_strlcat(bps, "/s", sizeof(bps));
-			formatNumber(s->totalbytes, total, 6);
-			formatNumber(s->srcbytes, totalsrc, 6);
-			formatNumber(s->dstbytes, totaldst, 6);
-			address2String(AF_INET, &s->src, srcaddr, 19);
-			if (s->srcresolv == NULL || s->srcresolv->name == NULL) {
-				psrcaddr = srcaddr;
-			} else {
-				psrcaddr = s->srcresolv->name;
+		switch (displayMode) {
+		case DISPLAYMODE_NORMAL:
+			for (i=0; i<displayStreamsCount; i++) {
+				gchar srcaddr[20], dstaddr[20], srcport[10], dstport[10], bps[10], total[10], totalsrc[10], totaldst[10];
+				gchar linebuffer[1024];
+				gchar *psrcaddr, *pdstaddr;
+				ntop_stream *s = displayStreams[i];
+				uint ibps = s->bps;
+				formatNumber((onoffBitValues?8:1)*ibps, bps, 6);
+				g_strlcat(bps, "/s", sizeof(bps));
+				formatNumber(s->totalbytes, total, 6);
+				formatNumber(s->srcbytes, totalsrc, 6);
+				formatNumber(s->dstbytes, totaldst, 6);
+				address2String(AF_INET, &s->src, srcaddr, 19);
+				if (s->srcresolv == NULL || s->srcresolv->name == NULL) {
+					psrcaddr = srcaddr;
+				} else {
+					psrcaddr = s->srcresolv->name;
+				}
+				address2String(AF_INET, &s->dst, dstaddr, 19);
+				if (s->dstresolv == NULL || s->dstresolv->name == NULL) {
+					pdstaddr = dstaddr;
+				} else {
+					pdstaddr = s->dstresolv->name;
+				}
+				sprintf(srcport, "%d", s->srcport);
+				sprintf(dstport, "%d", s->dstport);
+				sprintf(linebuffer, "%s <-> %s", psrcaddr, pdstaddr);
+				mvwprintw(listWindow, i*3, 0, line0FormatString, linebuffer, bps);
+				mvwchgat(listWindow, i*3, 0, activeColumns-8, A_BOLD, 0, NULL);
+				mvwprintw(listWindow, i*3+1, 0, line1FormatString, srcaddr, srcport, NTOP_PROTOCOLS[s->proto], dstaddr, dstport, totalsrc, totaldst, total);
+				mvwprintw(listWindow, i*3+2, 0, line2FormatString, s->filterDataString);
 			}
-			address2String(AF_INET, &s->dst, dstaddr, 19);
-			if (s->dstresolv == NULL || s->dstresolv->name == NULL) {
-				pdstaddr = dstaddr;
-			} else {
-				pdstaddr = s->dstresolv->name;
+			break;
+		case DISPLAYMODE_BPFFILTERS:
+			wattron(listWindow, A_BOLD);
+			mvwprintw(listWindow, 1, 0, "Select rule you want to apply:");
+			wattroff(listWindow, A_BOLD);
+			mvwprintw(listWindow, 3, 5, "[.] None");
+			for (i=0; i<bpfFilters->len/2; i++) {
+				mvwprintw(listWindow, i+4, 5, "[%c] %s", 'a'+i, g_ptr_array_index(bpfFilters, i*2));
 			}
-			sprintf(srcport, "%d", s->srcport);
-			sprintf(dstport, "%d", s->dstport);
-			sprintf(linebuffer, "%s <-> %s", psrcaddr, pdstaddr);
-			mvwprintw(listWindow, i*3, 0, line0FormatString, linebuffer, bps);
-			mvwchgat(listWindow, i*3, 0, activeColumns-8, A_BOLD, 0, NULL);
-			mvwprintw(listWindow, i*3+1, 0, line1FormatString, srcaddr, srcport, NTOP_PROTOCOLS[s->proto], dstaddr, dstport, totalsrc, totaldst, total);
-			mvwprintw(listWindow, i*3+2, 0, line2FormatString, s->filterDataString);
+			break;
 		}
+
 		g_mutex_unlock(displayStreamsMutex);
 
 		wnoutrefresh(listWindow);
@@ -563,39 +577,60 @@ gpointer displayThreadFunc(gpointer data) {
 		g_usleep(1000000);
 		i = getch();
 		if (i!=ERR) {
-			switch (i) {
-				case 'q':
-				case 'Q':
-					drawStatus("Please wait, shutting down...");
-					activeDevice = NULL;
-					break;
-				case 'c':
-					onoffContentFiltering = !onoffContentFiltering;
-					break;
-				case 'b':
-					onoffBitValues = !onoffBitValues;
-					break;
-				case '0':
-				case '1':
-				case '2':
-				case '3':
-				case '4':
-				case '5':
-				case '6':
-				case '7':
-				case '8':
-				case '9':
-					i -= '0';
-					if (devices_count>1 && devices_count > i) {
-						drawStatus("Please wait, cleaning up...");
-						newDevice = devices + i;
+			switch (displayMode) {
+			case DISPLAYMODE_NORMAL:
+				switch (i) {
+					case 'q':
+					case 'Q':
+						drawStatus("Please wait, shutting down...");
 						activeDevice = NULL;
-					}
+						break;
+					case 'c':
+						onoffContentFiltering = !onoffContentFiltering;
+						break;
+					case 'b':
+						onoffBitValues = !onoffBitValues;
+						break;
+					case 'f':
+						displayMode = DISPLAYMODE_BPFFILTERS;
+						break;
+					case '0':
+					case '1':
+					case '2':
+					case '3':
+					case '4':
+					case '5':
+					case '6':
+					case '7':
+					case '8':
+					case '9':
+						i -= '0';
+						if (devices_count>1 && devices_count > i) {
+							drawStatus("Please wait, cleaning up...");
+							newDevice = devices + i;
+							activeDevice = NULL;
+						}
+						break;
+				}
+				break;
+			case DISPLAYMODE_BPFFILTERS:
+				if ((i == '.') || ((i >= 'a') && (i < 'a' + (bpfFilters->len/2)))) {
+					drawStatus("Please wait, cleaning up...");
+					if (i == '.')
+						newBPFFilter = NULL;
+					else
+						newBPFFilter = g_ptr_array_index(bpfFilters, (i - 'a')*2 + 1);
+					newDevice = activeDevice;
+					activeDevice = NULL;
+					displayMode = DISPLAYMODE_NORMAL;
 					break;
+				}
+				break;
 			}
 		}
 		while (getch() != ERR) ;
 	}
+
 	threadCount --;
 	return NULL;
 }
@@ -672,6 +707,7 @@ gpointer snifferThreadFunc(gpointer data) {
 	pcap_t		*handle = NULL;
 	ntop_device	*device = NULL;
 	gchar		pcap_errbuf[PCAP_ERRBUF_SIZE];
+	gboolean	isFilterUsed = FALSE;
 
 	threadCount ++;
 
@@ -679,6 +715,9 @@ gpointer snifferThreadFunc(gpointer data) {
 		if (device != activeDevice) {
 			if (device) {
 				pcap_close(handle);
+			}
+			if (isFilterUsed) {
+				pcap_freecode(&activeBPFFilter);
 			}
 			device = activeDevice;
 			if (!device) {
@@ -697,8 +736,25 @@ gpointer snifferThreadFunc(gpointer data) {
 #if HAVE_PCAP_SETNONBLOCK
 			pcap_setnonblock(handle, 1, NULL);
 #endif
+			if (newBPFFilter) {
+				isFilterUsed = FALSE;
+				debug("Filter: %s\n", newBPFFilter);
+				if (pcap_compile(handle, &activeBPFFilter, newBPFFilter, 0, 0xFFFFFFFF) == -1) {
+					char BUF[PCAP_ERRBUF_SIZE + 128];
+					snprintf(BUF, PCAP_ERRBUF_SIZE + 128, "Filter not applied. Error while compiling: %s", pcap_geterr(handle));
+					drawStatus(BUF);
+				} else {
+					if (pcap_setfilter(handle, &activeBPFFilter) == -1) {
+						char BUF[PCAP_ERRBUF_SIZE + 128];
+						snprintf(BUF, PCAP_ERRBUF_SIZE + 128, "Filter not applied. setfilter(): %s", pcap_geterr(handle));
+						drawStatus(BUF);
+					}
+					isFilterUsed = TRUE;
+				}
+			}
 			deviceDataLink = pcap_datalink(handle);
 		}
+
 #ifdef USE_SELECT
 		{
 			int pcap_fd = pcap_fileno(handle);
@@ -737,6 +793,111 @@ void    initDefaults() {
 	g_hash_table_insert(resolverCache, GUINT_TO_POINTER(0), entry);
 }
 
+void	readConfig() {
+	FILE *f;
+	GScanner *s;
+	GHashTable *variables;
+	char *homeDir;
+
+	variables = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+
+	if (!configFileName) {
+		homeDir = getenv("HOME");
+		if (!homeDir) {
+			configFileName = ".jnettop";
+		} else {
+			configFileName = g_new0(char, strlen(homeDir) + 10);
+			sprintf(configFileName, "%s/.jnettop", homeDir);
+		}
+	}
+
+	f = fopen(configFileName, "r");
+	if (!f) {
+		fprintf(stderr, "Could not read/find config file %s: %s.\n", configFileName, strerror(errno));
+		return;
+	}
+
+	s = g_scanner_new(NULL);
+	g_scanner_input_file(s, fileno(f));
+	while (!g_scanner_eof(s)) {
+		GTokenType tt;
+		int line;
+
+		line = s->line;
+		tt = g_scanner_get_next_token(s);
+		if (tt == G_TOKEN_EOF) {
+			break;
+		}
+		if (tt != G_TOKEN_IDENTIFIER) {
+			fprintf(stderr, "Parse error on line %d: identifier expected.\n", line);
+			exit(255);
+		}
+		if (!g_ascii_strcasecmp(s->value.v_identifier, "variable")) {
+			char * variableName, * variableValue;
+			tt = g_scanner_get_next_token(s);
+			if (tt != G_TOKEN_STRING) {
+				fprintf(stderr, "Parse error on line %d: variable name as string expected.\n", line);
+				exit(255);
+			}
+			variableName = g_strdup(s->value.v_string);
+			tt = g_scanner_get_next_token(s);
+			if (tt != G_TOKEN_STRING) {
+				fprintf(stderr, "Parse error on line %d: variable value as string expected.\n", line);
+				exit(255);
+			}
+			variableValue = g_strdup(s->value.v_string);
+			g_hash_table_insert(variables, variableName, variableValue);
+			continue;
+		}
+		if (!g_ascii_strcasecmp(s->value.v_identifier, "rule")) {
+			char * ruleName;
+			char * c;
+			GString *str;
+			tt = g_scanner_get_next_token(s);
+			if (tt != G_TOKEN_STRING) {
+				fprintf(stderr, "Parse error on line %d: rule name as string expected.\n", line);
+				exit(255);
+			}
+			ruleName = g_strdup(s->value.v_string);
+			tt = g_scanner_get_next_token(s);
+			if (tt != G_TOKEN_STRING) {
+				fprintf(stderr, "Parse error on line %d: rule expression as string expected.\n", line);
+				exit(255);
+			}
+			str = g_string_new("");
+			for (c=s->value.v_string; *c; c++) {
+				char * rightBracket;
+				char * variableValue;
+				if (*c == '$' && *(c+1) == '{') {
+					rightBracket = strchr(c, '}');
+					c += 2;
+					if (!rightBracket) {
+						fprintf(stderr, "Wrong variable substitution on line %d!\n", line);
+						exit(255);
+					}
+					*rightBracket = '\0';
+					variableValue = g_hash_table_lookup(variables, c);
+					if (!variableValue) {
+						fprintf(stderr, "Undefined variable %s on line %d!\n", c, line);
+						exit(255);
+					}
+					g_string_append(str, variableValue);
+					c = rightBracket;
+				} else {
+					g_string_append_c(str, *c);
+				}
+			}
+			g_ptr_array_add(bpfFilters, ruleName);
+			g_ptr_array_add(bpfFilters, str->str);
+			g_string_free(str, FALSE);
+			continue;
+		}
+	}
+
+	g_hash_table_destroy(variables);
+
+}
+
 int main(int argc, char ** argv) {
 	int a;
 	char * deviceName = NULL;
@@ -758,6 +919,7 @@ int main(int argc, char ** argv) {
 				"    -d, --debug filename   write debug information into file\n"
 				"    -c, --content-filter   disable content filtering\n"
 				"    -b, --bit-units        show BPS in bits per second, not bytes per second\n"
+				"    -f, --config-file name reads configuration from file. defaults to ~/.jnettop\n"
 				"\n"
 				"Report bugs to <j@kubs.cz>\n");
 			exit(0);
@@ -788,6 +950,14 @@ int main(int argc, char ** argv) {
 				perror("Could not open debug file");
 				exit(255);
 			}
+			continue;
+		}
+		if (!strcmp(argv[a], "-f") || !strcmp(argv[a], "--config-file")) {
+			if (a+1>=argc) {
+				fprintf(stderr, "%s switch required argument\n", argv[a]);
+				exit(255);
+			}
+			configFileName = argv[++a];
 			continue;
 		}
 		fprintf(stderr, "Unknown argument: %s\n", argv[a]);
@@ -825,7 +995,10 @@ int main(int argc, char ** argv) {
 	displayStreamsMutex = g_mutex_new();
 	freePacketStackMutex = g_mutex_new();
 
+	bpfFilters = g_ptr_array_new();
+
 	initDefaults();
+	readConfig();
 
 	initscr();
 	cbreak();
@@ -862,7 +1035,7 @@ int main(int argc, char ** argv) {
 		displayThread = g_thread_create((GThreadFunc)displayThreadFunc, NULL, TRUE, NULL);
 		g_thread_join(displayThread);
 
-		if (!newDevice) {
+		if (!newDevice && !newBPFFilter) {
 			// In case we're not switching to another device, we can happily finish
 			// after our display thread dies. (mind the endwin())
 			break;
@@ -880,6 +1053,4 @@ int main(int argc, char ** argv) {
 	}
 
 	endwin();
-
-	return 0;
 }
