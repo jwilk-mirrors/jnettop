@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.20 2003-04-24 12:24:30 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.21 2003-07-30 10:38:15 merunka Exp $
  *
  */
 
@@ -93,8 +93,8 @@ gchar 		line0FormatString[512], line1FormatString[512], line2FormatString[512];
 
 gboolean	onoffContentFiltering;
 gboolean	onoffBitValues;
-
 gboolean	onoffSuspended;
+gboolean	onoffPromisc;
 
 #define		DISPLAYMODE_NORMAL		0
 #define		DISPLAYMODE_BPFFILTERS		1
@@ -914,7 +914,7 @@ gpointer snifferThreadFunc(gpointer data) {
 
 				return NULL;
 			}
-			handle = pcap_open_live((char*)device->name, BUFSIZ, 0, 10, pcap_errbuf);
+			handle = pcap_open_live((char*)device->name, BUFSIZ, onoffPromisc, 10, pcap_errbuf);
 			if (handle == NULL) {
 				char BUF[PCAP_ERRBUF_SIZE + 128];
 				snprintf(BUF, PCAP_ERRBUF_SIZE + 128, "Not sniffing. Error while initializing %s: %s", device->name, pcap_errbuf);
@@ -987,6 +987,37 @@ void    initDefaults() {
 	g_hash_table_insert(resolverCache, GUINT_TO_POINTER(0x01000000), entry);
 	configDeviceName = NULL;
 }
+
+int	config_parse_boolean(GScanner *s) {
+	GTokenType tt;
+	tt = g_scanner_get_next_token(s);
+	if (tt != G_TOKEN_IDENTIFIER || (strcmp(s->value.v_identifier, "on") && strcmp(s->value.v_identifier,"off"))) {
+		return -1;
+	}
+	return strcmp(s->value.v_identifier, "off")?TRUE:FALSE;
+}
+
+int     parse_aggregation(const char *agg) {
+	if (strcmp(agg, "none") && strcmp(agg,"host") && strcmp(agg,"port")) {
+		return AGG_UNKNOWN;
+	}
+	switch (*agg) {
+		case 'n': return AGG_NONE;
+		case 'h': return AGG_HOST;
+		case 'p': return AGG_PORT;
+	}
+	return AGG_UNKNOWN;
+}
+
+int	config_parse_aggregation(GScanner *s) {
+	GTokenType tt;
+	tt = g_scanner_get_next_token(s);
+	if (tt != G_TOKEN_IDENTIFIER) {
+		return AGG_UNKNOWN;
+	}
+	return parse_aggregation(s->value.v_identifier);
+}
+
 
 void	readConfig() {
 	FILE *f;
@@ -1096,6 +1127,59 @@ void	readConfig() {
 			configDeviceName = g_strdup(s->value.v_string);
 			continue;
 		}
+		if (!g_ascii_strcasecmp(s->value.v_identifier, "promisc")) {
+			int val = config_parse_boolean(s);
+			if (val == -1) {
+				fprintf(stderr, "Parse error on line %d: expecting on or off value.\n", line);
+				exit(255);
+			}
+			if (onoffPromisc == -1)
+				onoffPromisc = val;
+			continue;
+		}
+		if (!g_ascii_strcasecmp(s->value.v_identifier, "local_aggregation")) {
+			int val = config_parse_aggregation(s);
+			if (val == AGG_UNKNOWN) {
+				fprintf(stderr, "Parse error on line %d: expecting none or host or port.\n", line);
+				exit(255);
+			}
+			if (localAggregation == AGG_UNKNOWN)
+				localAggregation = val;
+			continue;
+		}
+		if (!g_ascii_strcasecmp(s->value.v_identifier, "remote_aggregation")) {
+			int val = config_parse_aggregation(s);
+			if (val == AGG_UNKNOWN) {
+				fprintf(stderr, "Parse error on line %d: expecting none or host or port.\n", line);
+				exit(255);
+			}
+			if (remoteAggregation == AGG_UNKNOWN)
+				remoteAggregation = val;
+			continue;
+		}
+		if (!g_ascii_strcasecmp(s->value.v_identifier, "select_rule")) {
+			char * ruleName;
+			int i;
+			tt = g_scanner_get_next_token(s);
+			if (tt != G_TOKEN_STRING) {
+				fprintf(stderr, "Parse error on line %d: rule name as string expected.\n", line);
+				exit(255);
+			}
+			ruleName = g_strdup(s->value.v_string);
+			for (i=0; i<bpfFilters->len/2; i++) {
+				char * iName;
+				iName = (char *)g_ptr_array_index(bpfFilters, i*2);
+				if (!strcmp(iName, ruleName)) {
+					newBPFFilter = g_ptr_array_index(bpfFilters, i*2 + 1);
+					newBPFFilterName = (char *) g_ptr_array_index(bpfFilters, i*2 );
+					break;
+				}
+			}
+			if (i<bpfFilters->len/2)
+				continue;
+			fprintf(stderr, "Parse error on line %d: rule %s not defined so far.\n", line, ruleName);
+			exit(255);
+		}
 	}
 
 	g_hash_table_destroy(variables);
@@ -1105,9 +1189,13 @@ void	readConfig() {
 int main(int argc, char ** argv) {
 	int a;
 	char * deviceName = NULL;
+	char * selectRuleName = NULL;
 
 	onoffContentFiltering = TRUE;
 	onoffBitValues = FALSE;
+	onoffPromisc = -1;
+	localAggregation = AGG_UNKNOWN;
+	remoteAggregation = AGG_UNKNOWN;
 	
 	for (a=1; a<argc; a++) {
 		if (!strcmp(argv[a], "-v") || !strcmp(argv[a], "--version")) {
@@ -1118,12 +1206,17 @@ int main(int argc, char ** argv) {
 			printf(	"Usage: jnettop [-hv] [-i interface] [-d filename]\n"
 				"\n"
 				"    -h, --help             display this help message\n"
-				"    -v, --version          display version information\n"
-				"    -i, --interface name   capture packets on specified interface\n"
-				"    -d, --debug filename   write debug information into file\n"
-				"    -c, --content-filter   disable content filtering\n"
+				"    -v, --version          display version information\n\n"
 				"    -b, --bit-units        show BPS in bits per second, not bytes per second\n"
+				"    -c, --content-filter   disable content filtering\n"
+				"    -d, --debug filename   write debug information into file\n"
 				"    -f, --config-file name reads configuration from file. defaults to ~/.jnettop\n"
+				"    -i, --interface name   capture packets on specified interface\n"
+				"    --local-aggr arg       set local aggregation to none/host/port\n"
+				"    -p, --promiscuous      enable promisc mode on the devices\n"
+				"    --remote-aggr arg      set remote aggregation to none/host/port\n"
+				"    -s, --select-rule rule selects one of the rules defined in config file\n"
+				"                           by it's name\n"
 				"    -x, --filter rule      allows for specification of custom filtering rule\n"
 				"                           this follows tcpdump(1) syntax. don't forget to\n"
 				"                           enclose the filter into quotes when running from shell\n"
@@ -1141,10 +1234,18 @@ int main(int argc, char ** argv) {
 		}
 		if (!strcmp(argv[a], "-i") || !strcmp(argv[a], "--interface")) {
 			if (a+1>=argc) {
-				fprintf(stderr, "%s switch required argument\n", argv[a]);
+				fprintf(stderr, "%s switch requires argument\n", argv[a]);
 				exit(255);
 			}
 			deviceName = argv[++a];
+			continue;
+		}
+		if (!strcmp(argv[a], "-s") || !strcmp(argv[a], "--select-rule")) {
+			if (a+1>=argc) {
+				fprintf(stderr, "%s switch requires argument\n", argv[a]);
+				exit(255);
+			}
+			selectRuleName = argv[++a];
 			continue;
 		}
 		if (!strcmp(argv[a], "-d") || !strcmp(argv[a], "--debug")) {
@@ -1183,6 +1284,24 @@ int main(int argc, char ** argv) {
 			newBPFFilter = commandLineRule;
 			continue;
 		}
+		if (!strcmp(argv[a], "-p") || !strcmp(argv[a], "--promiscuous")) {
+			onoffPromisc = TRUE;
+			continue;
+		}
+		if (!strcmp(argv[a], "--local-aggr")) {
+			if (a+1>=argc || (localAggregation = parse_aggregation(argv[++a]))==-1) {
+				fprintf(stderr, "%s switch requires none, host or port as an argument\n", argv[a]);
+				exit(255);
+			}
+			continue;
+		}
+		if (!strcmp(argv[a], "--remote-aggr")) {
+			if (a+1>=argc || (remoteAggregation = parse_aggregation(argv[++a]))==-1) {
+				fprintf(stderr, "%s switch requires none, host or port as an argument\n", argv[a]);
+				exit(255);
+			}
+			continue;
+		}
 		fprintf(stderr, "Unknown argument: %s\n", argv[a]);
 		exit(255);
 	}
@@ -1211,6 +1330,29 @@ int main(int argc, char ** argv) {
 
 	initDefaults();
 	readConfig();
+
+	if (onoffPromisc == -1)
+		onoffPromisc = FALSE;
+	if (localAggregation == AGG_UNKNOWN)
+		localAggregation = AGG_NONE;
+	if (remoteAggregation == AGG_UNKNOWN)
+		remoteAggregation = AGG_NONE;
+	if (selectRuleName) {
+		int i;
+		for (i=0; i<bpfFilters->len/2; i++) {
+			char * iName;
+			iName = (char *)g_ptr_array_index(bpfFilters, i*2);
+			if (!strcmp(iName, selectRuleName)) {
+				newBPFFilter = g_ptr_array_index(bpfFilters, i*2 + 1);
+				newBPFFilterName = (char *) g_ptr_array_index(bpfFilters, i*2 );
+				break;
+			}
+		}
+		if (i>=bpfFilters->len/2) {
+			fprintf(stderr, "Rule '%s' specified on the command line is not defined.\n", selectRuleName);
+			exit(255);
+		}
+	}
 
 	lookupDevices();
 	

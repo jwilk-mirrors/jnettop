@@ -40,26 +40,39 @@ Show summary of options.
 .B \-v, \-\-version
 Show version of program.
 .TP
-.B \-i, \-\-interface name
-capture packets on specified interface
-.TP
-.B \-d, \-\-debug filename
-write debug information into file
+.B \-b, \-\-bit-units
+show BPS In bits per second, not bytes per second
 .TP
 .B \-c, \-\-content-filter
 disable content filtering
 .TP
-.B \-b, \-\-bit-units
-show BPS In bits per second, not bytes per second
+.B \-d, \-\-debug filename
+write debug information into file
 .TP
 .B \-f, \-\-config-file filename
 reads configuration from filename. defaults to ~/.jnettop. an example can be found at /usr/share/doc/jnettop/dot.jnettop.
 or in .jnettop file from original distribution package.
 .TP
+.B \-i, \-\-interface name
+capture packets on specified interface
+.TP
+.B \-\-local-aggr [none|host|port]
+set local aggregation to specified value
+.TP
+.B \-p, \-\-promiscuous
+enables promiscuous mode on the sniffed interface
+.TP
+.B \-\-remote-aggr [none|host|port]
+set remote aggregation to specified value
+.TP
+.B \-s, \-\-select-rule name
+selects one of the rules defined in .jnettop configuration file (by it's name)
+.TP
 .B \-x, \-\-filter rule
 allows for specification of custom filtering rule. this allows for
 .BR tcpdump(1)
 style syntax. don't forget to enclolse the filter into quotes when running from a shell.
+.TP
 .\".SH SEE ALSO
 .\".BR bar (1),
 .SH CONFIGURATION
@@ -67,25 +80,46 @@ Program looks for settings in the file specified by parameter \fB-f\fP, which de
 an ordinary text file with keywords and their arguments. You HAVE to enclose arguments into double quotes. Available keywords
 are:
 .TP
-\fBinterface\fR
+\fBinterface "<interface_name>"\fR
 The \fBinterface\fP keyword specifies network interface on which to start listening. Example:
 .RS
 .PP
 interface "eth0"
 .RE
 .TP
-\fBvariable\fR
-The \fBvariable\fP keyword introduces a string variable for use in future rule definitions. It can be used to shorten rule definitions. Example:
+\fBlocal_aggregation [none|host|port]\fR
+The \fBlocal_aggregation\fP keyword specifies initial active local aggregation. Valid values are \fBnone\fP, \fBhost\fP and \fBport\fP. Example:
 .RS
 .PP
-variable "intranet" "net 192.168.0.0/16 or 10.0.0.0/8 or 172.16.0.0/12"
+local_aggregation host
 .RE
 .TP
-\fBrule\fR
+\fBremote_aggregation [none|host|port]\fR
+The \fBremote_aggregation\fP keyword specifies initial active remote aggregation. Valid values are \fBnone\fP, \fBhost\fP and \fBport\fP. Example:
+.RS
+.PP
+remote_aggregation port
+.RE
+.TP
+\fBrule "<rule_name>" "<rule_definition>"\fR
 The \fBrule\fP keyword defines a set of predefined tcpdump(1)-like filters to apply. You can specify various filters as "show me what 192.168.1.32" sends:
 .RS
 .PP
 rule "show 192.168.1.32" "src 192.168.1.32"
+.RE
+.TP
+\fBselect_rule "<rule_name>"\fR
+The \fBselect_rule\fP keyword specifies initial active predefined rule. The rule must be defined before this keyword is used. Example:
+.RS
+.PP
+select_rule "show 192.168.1.32"
+.RE
+.TP
+\fBvariable "<variable_name>" "<variable_contents>"\fR
+The \fBvariable\fP keyword introduces a string variable for use in future rule definitions. It can be used to shorten rule definitions. Example:
+.RS
+.PP
+variable "intranet" "net 192.168.0.0/16 or 10.0.0.0/8 or 172.16.0.0/12"
 .RE
 .TP
 For more information, see README file or .jnettop example configuration file included in distribution.

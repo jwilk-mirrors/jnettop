@@ -81,7 +81,7 @@ struct __ntop_packet;
 
 #define	RXTX_RX		1
 #define	RXTX_UNKNOWN	0
-#define	RXTX_TX		-1
+#define	RXTX_TX		(-1)
 
 typedef void (*FilterDataFunc) (struct __ntop_stream *stream, const struct __ntop_packet *packet, gboolean direction, const struct __ntop_payload_info *pi);
 typedef void (*FilterDataFreeFunc) (struct __ntop_stream *stream);
@@ -156,6 +156,7 @@ void		assignDataFilter(ntop_stream *stream);
 // forward declaration of jnettop exports
 void		debug(const char *format, ...);
 
+#define AGG_UNKNOWN		(-1)
 #define AGG_NONE		0
 #define AGG_PORT		1
 #define AGG_HOST		2

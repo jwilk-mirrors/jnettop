@@ -1,3 +1,13 @@
+2003-07-30	Jakub Skopal	<j@kubs.cz>
+
+ * promisc mode parameter added (-p)
+   (thanks to Edmund Roche-Kelly for patch and Andrew Pimlott
+    for suggestion)
+ * added "local_aggregation", "remote_aggregation" and "select_rule"
+   keywords in configuration file
+   (thanks to Arturas Slajus for suggestion)
+ * added --local-aggr, --remote-aggr and -s parameters
+
 2003-04-24	Jakub Skopal	<j@kubs.cz>
 
  * released version ignored -i argument. corrected.
@@ -87,4 +97,4 @@
 
  * initial release
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.18 2003-04-24 12:24:26 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.19 2003-07-30 10:38:15 merunka Exp $
