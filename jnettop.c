@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.23 2004-09-30 08:06:00 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.24 2004-09-30 17:46:04 merunka Exp $
  *
  */
 
@@ -127,13 +127,13 @@ const char * validateBPFFilter(char *filter) {
 void	setToHostAggregation(int af, ntop_mutableaddress *addr) {
 	switch (af) {
 		case AF_INET:
-			addr->addr4.s_addr = 0x01000000;
+			addr->addr4.s_addr = htonl(0x01000000);
 			break;
 		case AF_INET6:
 			addr->addr6.s6_addr32[0] = 0x0;
 			addr->addr6.s6_addr32[1] = 0x0;
 			addr->addr6.s6_addr32[2] = 0x0;
-			addr->addr6.s6_addr32[3] = 0x01000000;
+			addr->addr6.s6_addr32[3] = htonl(0x01000000);
 			break;
 	}
 }
@@ -141,9 +141,9 @@ void	setToHostAggregation(int af, ntop_mutableaddress *addr) {
 int	isHostAggregation(int af, const ntop_mutableaddress *addr) {
 	switch (af) {
 		case AF_INET:
-			return addr->addr4.s_addr == 0x01000000;
+			return addr->addr4.s_addr == htonl(0x01000000);
 		case AF_INET6:
-			return addr->addr6.s6_addr32[0] == 0x0 && addr->addr6.s6_addr32[1] == 0x0 && addr->addr6.s6_addr32[2] == 0x0  && addr->addr6.s6_addr32[3] == 0x01000000;
+			return addr->addr6.s6_addr32[0] == 0x0 && addr->addr6.s6_addr32[1] == 0x0 && addr->addr6.s6_addr32[2] == 0x0  && addr->addr6.s6_addr32[3] == htonl(0x01000000);
 	}
 	return 0;
 }
@@ -466,7 +466,7 @@ void	updateBPS() {
 		s->hdstpacketssum -= s->hdstpackets[HISTORY_LENGTH-1];
 		memmove(s->hdstpackets+1, s->hdstpackets, sizeof(guint)*(HISTORY_LENGTH-1));
 		s->hdstpackets[0] = 0;
-		s->totalpackets = s->srcpps + s->dstpps;
+		s->totalpps = s->srcpps + s->dstpps;
 		
 		if (!s->dead && currentDateTime.tv_sec - s->lastSeen.tv_sec > 10) {
 			s->dead ++;
@@ -541,8 +541,6 @@ void drawScreen() {
 		mvprintw(0, activeColumns-1, ".");
 
 		{
-			int hostColumns = activeColumns - 8;
-			int windowColumns = hostColumns / 2 - 2;
 			int addrColumns = (activeColumns - 48) / 2;
 			sprintf(line0FormatString, "%%-%d.%ds %%7.7s %%7.7s %%8.8s", activeColumns-25, activeColumns-25);
 			sprintf(line1FormatString, " %%-%d.%ds %%5.5s %%6.6s  %%-%d.%ds %%5.5s  %%7.7s %%7.7s %%8.8s", addrColumns, addrColumns, addrColumns, addrColumns);
@@ -556,7 +554,7 @@ void drawScreen() {
 	}
 	g_mutex_lock(statusMutex);
 	if (statusMessage == NULL) {
-		mvprintw(2, 0, "[q]uit [h]elp [s]orting");
+		mvprintw(2, 0, "[q]uit [h]elp [s]orting [p]ackets");
 	} else {
 		GTimeVal tv;
 		attron(A_BOLD);
@@ -589,7 +587,7 @@ void drawHeader() {
 		mvprintw(0, 21, "%-10s", activeDevice->name);
 	mvprintw(0, 45, "%-29.29s", activeBPFFilterName?activeBPFFilterName:"none");
 	mvprintw(1, 13, "%s", onoffContentFiltering?"on ":"off");
-	mvprintw(1, 23, "%s", onoffPackets ? "pckt/s" : (onoffBitValues?"bits/s ":"bytes/s"));
+	mvprintw(1, 23, "%s", onoffPackets ? "pckts/s" : (onoffBitValues?"bits/s ":"bytes/s"));
 	mvprintw(1, 46, "%s", NTOP_AGGREGATION[localAggregation]);
 	mvprintw(1, 67, "%s", NTOP_AGGREGATION[remoteAggregation]);
 
@@ -737,18 +735,18 @@ void	doDisplayStreams() {
 		gchar srcaddr[INET6_ADDRSTRLEN + 1], dstaddr[INET6_ADDRSTRLEN + 1];
 		gchar srcport[10], dstport[10], srcbps[10], dstbps[10], bps[10];
 		gchar total[10], totalsrc[10], totaldst[10];
-		uint ibps;
+		uint tmp;
 		gchar linebuffer[1024];
 		gchar *psrcaddr, *pdstaddr;
 		ntop_stream *s = displayStreams[i];
-		ibps = onoffPackets ? s->totalpps : s->totalbps;
-		formatNumber((onoffBitValues && onoffPackets?8:1)*ibps, bps, 6);
+		tmp = onoffPackets ? s->totalpps : (onoffBitValues?8:1)*s->totalbps;
+		formatNumber(tmp, bps, 6);
 		g_strlcat(bps, "/s", sizeof(bps));
-		ibps = onoffPackets ? s->srcpps : s->srcbps;
-		formatNumber((onoffBitValues && onoffPackets?8:1)*ibps, srcbps, 6);
+		tmp = onoffPackets ? s->srcpps : (onoffBitValues?8:1)*s->srcbps;
+		formatNumber(tmp, srcbps, 6);
 		g_strlcat(srcbps, "/s", sizeof(srcbps));
-		ibps = onoffPackets ? s->dstpps : s->dstbps;
-		formatNumber((onoffBitValues && onoffPackets?8:1)*ibps, dstbps, 6);
+		tmp = onoffPackets ? s->dstpps : (onoffBitValues?8:1)*s->dstbps;
+		formatNumber(tmp, dstbps, 6);
 		g_strlcat(dstbps, "/s", sizeof(dstbps));
 		formatNumber(onoffPackets ? s->totalpackets : s->totalbytes, total, 6);
 		formatNumber(onoffPackets ? s->srcpackets : s->srcbytes, totalsrc, 6);
@@ -1096,7 +1094,7 @@ void    initDefaults() {
 	entry = g_new0(ntop_resolv_entry, 1);
 	entry->name = "AGGREGATEDv4";
 	entry->af = AF_INET;
-	entry->addr.addr4.s_addr = 0x01000000;
+	entry->addr.addr4.s_addr = htonl(0x01000000);
 	g_hash_table_insert(resolverCache, entry, entry);
 	entry = g_new0(ntop_resolv_entry, 1);
 	entry->name = "AGGREGATEDv6";
@@ -1104,7 +1102,7 @@ void    initDefaults() {
 	entry->addr.addr6.s6_addr32[0] = 0x0;
 	entry->addr.addr6.s6_addr32[1] = 0x0;
 	entry->addr.addr6.s6_addr32[2] = 0x0;
-	entry->addr.addr6.s6_addr32[3] = 0x01000000;
+	entry->addr.addr6.s6_addr32[3] = htonl(0x01000000);
 	g_hash_table_insert(resolverCache, entry, entry);
 	configDeviceName = NULL;
 }
