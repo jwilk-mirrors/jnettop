@@ -1,4 +1,4 @@
-This is jnettop 0.6.
+This is jnettop 0.7.
 It's a package, which should do simmilar job for network as top does for
 processes.
 
@@ -130,5 +130,5 @@ jnettop consumes all available CPU time, but should behave nicely, so that
 it consumes all time up to 100%. Other processes should have theire appropriate
 time. This behaviour does not include Linux
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/README,v 1.7 2002-10-16 20:02:51 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/README,v 1.8 2002-10-16 20:06:30 merunka Exp $
 
