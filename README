@@ -1,4 +1,4 @@
-This is jnettop 0.8.
+This is jnettop 0.8.1.
 It's a package, which should do simmilar job for network as top does for
 processes.
 
@@ -163,5 +163,5 @@ Copyright (C) 2002, 2003 Jakub Skopal
 Portions of the package are taken from the tcpdump project and their rights are
 held by their respective owners stated in the beginning of the files.
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/README,v 1.10 2003-04-23 06:58:38 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/README,v 1.11 2003-04-24 12:24:26 merunka Exp $
 

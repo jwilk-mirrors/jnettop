@@ -1,3 +1,8 @@
+2003-04-24	Jakub Skopal	<j@kubs.cz>
+
+ * released version ignored -i argument. corrected.
+   thanks to Miroslav Zajic for pointing out.
+
 2003-04-23	Jakub Skopal	<j@kubs.cz>
 
  * included man page by Ari Pollak, thanks for help!
@@ -82,4 +87,4 @@
 
  * initial release
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.17 2003-04-23 06:58:38 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.18 2003-04-24 12:24:26 merunka Exp $

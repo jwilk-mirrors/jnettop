@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.19 2003-04-23 06:58:38 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.20 2003-04-24 12:24:30 merunka Exp $
  *
  */
 
@@ -1225,16 +1225,18 @@ int main(int argc, char ** argv) {
 			} else {
 				createDevice(configDeviceName);
 			}
-	} else if (configDeviceName) {
+	} else if (deviceName || configDeviceName) {
 		int i;
+		if (!deviceName && configDeviceName)
+			deviceName = configDeviceName;
 		for (i=0; i<devices_count; i++) {
-			if (!strcmp(devices[i].name, configDeviceName)) {
+			if (!strcmp(devices[i].name, deviceName)) {
 				newDevice = devices + i;
 				break;
 			}
 		}
 		if (!newDevice)
-			createDevice(configDeviceName);
+			createDevice(deviceName);
 	}
 
 	if (!newDevice)
