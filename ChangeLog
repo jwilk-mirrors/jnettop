@@ -3,6 +3,8 @@
  * modification of IPv6 support
  * bugfix of spec file to include manual page
    (thanks go to Martynas Bieliauskas)
+ * implementation of raw encapsulation (for linux IPv6 tunnel
+   devices)
 
 2004-09-29	Marcin Kaminski <maxiu@man.poznan.pl>
 
@@ -114,4 +116,4 @@
 
  * initial release
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.20 2004-09-29 19:09:35 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.21 2004-09-30 17:52:04 merunka Exp $
