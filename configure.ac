@@ -1,0 +1,33 @@
+# Process this file with autoconf to produce a configure script.
+AC_INIT([jnettop], [0.2], [j@kubs.cz])
+AM_INIT_AUTOMAKE
+
+# Checks for programs.
+AC_PROG_CC
+AC_PROG_INSTALL
+
+# Checks for libraries.
+AC_CHECK_LIB([ncurses], [wbkgdset],, AC_MSG_ERROR("ncurses library is required"))
+AC_NETTOP_GETHOSTBY_LIB_CHECK
+AC_NETTOP_SOCKET_LIB_CHECK
+AC_NETTOP_PCAP_CHECK
+
+AM_PATH_GLIB_2_0(2.0.1,, AC_MSG_ERROR("glib >= 2.0.1 library required"), gthread)
+
+# Checks for header files.
+AC_HEADER_STDC
+AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stdlib.h string.h sys/socket.h])
+
+# Checks for typedefs, structures, and compiler characteristics.
+AC_C_CONST
+AC_STRUCT_TM
+
+# Checks for library functions.
+AC_FUNC_MEMCMP
+AC_FUNC_STRFTIME
+AC_FUNC_VPRINTF
+AC_CHECK_FUNCS([localtime_r memmove memset pcap_findalldevs pcap_setnonblock])
+
+AM_CONFIG_HEADER([config.h])
+AC_CONFIG_FILES([Makefile])
+AC_OUTPUT

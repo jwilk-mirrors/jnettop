@@ -1,0 +1,63 @@
+This is jnettop 0.2.
+It's a package, which should do simmilar job for network as top does for
+processes.
+
+-- Introduction --
+
+After administering various networks I decided to write this piece of code,
+becouse I didn't find anything that was simmilar or suitable for my purpose.
+I often needed to watch traffic on the outbound router by the times our line
+was getting red and see, what's going on there and whether is it right.
+I hope, somebody out there will find this tool usefull too.
+Just in case you wanted to write me any comments, hints, postcards, herritage
+announcements, love, wish, abuse etc., feel free to use my email, j@kubs.cz.
+
+-- libpcap dependency explanation --
+
+  (Why cannot I switch interfaces while running jnettop. I've seen this
+   feature on a screenshot)
+
+There are various libpcap versions out there with different capabilities.
+Notably there is 0.6.2 and older, which don't support interface discovery.
+With these versions of libpcap, you won't be able to switch between interfaces
+while running jnettop. Anyway, you can use "-i" parameter to specify which
+interface to listen on (since jnettop 0.2).
+With libpcap version 0.7 and younger, you will be able to switch between
+various interfaces while running jnettop.
+NOTE, that the RPM distributed on http://www.kubs.cz is compiled for default
+RedHat 7.3 environment, which contains older abovementioned version of libpcap
+and thus doesn't support interface switching.
+
+If you want to get newer version of libpcap, go to http://www.tcpdump.org to
+get sources or you can find newer versions in RPMs on http://rpmfind.net
+
+-- glib2 dependency --
+
+  (Won't there be port for glib < 2 versions?)
+
+No. This package is heavily dependant on thread functions contained in glib2.
+I believe, that there are (will be) various platforms for which glib2 is ported
+and thus prefer to depend on generic threading capabilities of glib2 to meet
+less portability problems later.
+Glib2 is now available in RPMs for RedHat (and simmilar), DEBs for Debian and
+.tar.gz for the others.
+
+-- UNKNOWN traffic --
+
+  (Jnettop displays a lot of UNKNOWN traffic and UNK. protocol)
+
+Jnettop was done as basic analysis tool and does not interpret most of the
+protocols on Internet. Namely it can only interpret TCP/UDP/IP on EtherNet
+or Linux "any" device. This is sufficient for vast majority of linux users
+(=me .-)). In case you want me to add support for another encapsulation
+(802.11, etc...), please send me output of jnettop -d and a piece of tcpdump
+dumpfile with examples of packets. I'll do my best :)
+In case you want me to add support for another higher-level protocol
+(IPX, AppleTalk,...), please, send me a vote for that protocol. Jnettop was
+designed for IPv4 packets and would require major rewrite to support other
+protocols.
+
+
+Copyright (C) 2002 Jakub Skopal
+Portions of the package are taken from the tcpdump project and their rights are
+held by their respective owners stated in the beginning of the files.

@@ -1,0 +1,6 @@
+2002-08-27:	Added -i command line parameter
+		Added -d command line parameter
+		jnettop now correctly interprets traffic on linux "any" interface
+		separate in/out accounting
+
+2002-08-22:	The package is entirely new.
