@@ -141,3 +141,5 @@ gboolean	resolveStream(const ntop_packet *packet, ntop_stream *stream, ntop_payl
 // forward declaration of jfilter exports
 void		assignDataFilter(ntop_stream *stream);
 
+// forward declaration of jnettop exports
+void debug(const char *format, ...);

@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.5 2002-08-31 17:15:03 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.6 2002-08-31 18:40:00 merunka Exp $
  * 
  */
 
@@ -41,7 +41,6 @@ gboolean resolveStreamTCP(const gchar *data, guint len, ntop_stream *stream, nto
 }
 
 gboolean resolveStreamUDP(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
-	guint	hlen;
 	const struct udphdr *udp = (const struct udphdr *)data;
 	if (len < sizeof(struct udphdr)) {
 		return FALSE;
@@ -71,7 +70,7 @@ gboolean resolveStreamIP(const gchar  *data, guint len, ntop_stream *stream, nto
 		printf("len<hlen\n");
 		return TRUE;
 	}
-	if (ntohs(ip->ip_off) & 0x1fff != 0) {
+	if ((ntohs(ip->ip_off) & 0x1fff) != 0) {
 		printf("ip_off!=0\n");
 		return TRUE;
 	}

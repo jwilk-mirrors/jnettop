@@ -12,12 +12,19 @@
 # PARTICULAR PURPOSE.
 
 
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/aclocal.m4,v 1.4 2002-08-31 17:15:03 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/aclocal.m4,v 1.5 2002-08-31 18:40:00 merunka Exp $
 
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_5], [Set to 1 if gethostbyaddr_r takes 5 arguments])
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_7], [Set to 1 if gethostbyaddr_r takes 7 arguments])
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_8], [Set to 1 if gethostbyaddr_r takes 8 arguments])
 AH_TEMPLATE([NEED_REENTRANT], [Set to 1 if gethostbyaddr_r requires _REENTRANT symbol to be defined])
+
+AC_DEFUN(AC_NETTOP_GCC_FLAGS,
+[
+if test "$GCC" = "yes"; then
+  CFLAGS="$CFLAGS -Wall"
+fi
+])
 
 
 #

@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.10 2002-08-31 17:15:03 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.11 2002-08-31 18:40:00 merunka Exp $
  *
  */
 
@@ -62,7 +62,7 @@ guint32		totalBPS;
 GMutex		*displayStreamsMutex;
 ntop_stream	**displayStreams;
 int		displayStreamsCount;
-gchar 		line0FormatString[128], line1FormatString[128], line2FormatString[128];
+gchar 		line0FormatString[512], line1FormatString[512], line2FormatString[512];
 
 gboolean	onoffContentFiltering;
 gboolean	onoffBitValues;
@@ -154,7 +154,7 @@ guint hashStream(gconstpointer key) {
 	guint hash = 0;
 	hash = stream->src.s_addr;
 	hash ^= stream->dst.s_addr;
-	hash ^= ((guint)stream->srcport) << 16 + (guint)stream->dstport;
+	hash ^= (((guint)stream->srcport) << 16) + (guint)stream->dstport;
 	return hash;
 }
 
@@ -362,7 +362,7 @@ void drawHeader() {
 	localtime_r(&currentTime.tv_sec, &tm);
 	strftime(timeBuffer, 31, "%H:%M:%S", &tm);
 	mvprintw(0, 5, "%s", timeBuffer);
-	sprintf(timeBuffer, "%3d:%02d:%02d", (currentTime.tv_sec-startTime.tv_sec)/3600, (currentTime.tv_sec-startTime.tv_sec)%3600/60, (currentTime.tv_sec-startTime.tv_sec)%60);
+	sprintf(timeBuffer, "%3d:%02d:%02d", (int)((currentTime.tv_sec-startTime.tv_sec)/3600), (int)((currentTime.tv_sec-startTime.tv_sec)%3600/60), (int)((currentTime.tv_sec-startTime.tv_sec)%60));
 	mvprintw(0, 18, "%s", timeBuffer);
 	if (activeDevice)
 		mvprintw(0, 35, "%-10s", activeDevice->name);
@@ -468,6 +468,7 @@ gpointer sorterThreadFunc(gpointer data) {
 	}
 
 	threadCount --;
+	return NULL;
 }
 
 gboolean	removeStreamTableEntry(gpointer key, gpointer value, gpointer user_data) {
@@ -479,9 +480,8 @@ gboolean	removeStreamTableEntry(gpointer key, gpointer value, gpointer user_data
 void     clearStatistics() {
 	gpointer	ptr;
 	int            	i;
-	ntop_stream	*stat;
 
-	while (ptr = g_queue_pop_tail(packetQueue)) {
+	while ((ptr = g_queue_pop_tail(packetQueue))) {
 		g_free(ptr);
 	}
 	for (i=streamArray->len-1; i>=0; i--) {
@@ -574,6 +574,7 @@ gpointer displayThreadFunc(gpointer data) {
 		while (getch() != ERR) ;
 	}
 	threadCount --;
+	return NULL;
 }
 
 ntop_packet *allocNtopPacket() {
@@ -623,6 +624,8 @@ gpointer processorThreadFunc(gpointer data) {
 	}
 	g_mutex_unlock(packetQueueMutex);
 	threadCount --;
+
+	return NULL;
 }
 
 gboolean	packetReceived;
@@ -643,7 +646,7 @@ void     dispatch_callback(const u_char *udata, const struct pcap_pkthdr *hdr, c
 }
 
 gpointer snifferThreadFunc(gpointer data) {
-	pcap_t		*handle;
+	pcap_t		*handle = NULL;
 	ntop_device	*device = NULL;
 	gchar		pcap_errbuf[PCAP_ERRBUF_SIZE];
 
@@ -659,7 +662,7 @@ gpointer snifferThreadFunc(gpointer data) {
 				g_cond_signal(packetQueueCond);
 				threadCount --;
 
-				return;
+				return NULL;
 			}
 			handle = pcap_open_live((char*)device->name, BUFSIZ, 0, 10, pcap_errbuf);
 			if (handle == NULL) {
@@ -680,6 +683,7 @@ gpointer snifferThreadFunc(gpointer data) {
 	}
 
 	threadCount --;
+	return NULL;
 }
 
 void    initDefaults() {

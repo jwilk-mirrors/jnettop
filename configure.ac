@@ -1,13 +1,15 @@
 #
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/configure.ac,v 1.8 2002-08-31 17:15:03 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/configure.ac,v 1.9 2002-08-31 18:40:00 merunka Exp $
 #
 # Process this file with autoconf to produce a configure script.
-AC_INIT([jnettop], [0.4a], [j@kubs.cz])
+AC_INIT([jnettop], [0.4b], [j@kubs.cz])
 AM_INIT_AUTOMAKE
 
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_INSTALL
+
+AC_NETTOP_GCC_FLAGS
 
 # Checks for libraries.
 AC_CHECK_LIB([ncurses], [wbkgdset],, AC_MSG_ERROR("ncurses library is required"))
