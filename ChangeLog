@@ -1,3 +1,9 @@
+2004-10-04	Jakub Skopal <j@kubs.cz>
+
+ * --disable-multithreaded-resolver option added to configure
+   script. this option is necessary for FreeBSD (and maybe
+   other BSD unices)
+
 2004-10-02	Jakub Skopal <j@kubs.cz>
 
  * fixed porting issues
@@ -120,4 +126,4 @@
 
  * initial release
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.22 2004-10-01 22:43:35 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.23 2004-10-04 09:52:55 merunka Exp $

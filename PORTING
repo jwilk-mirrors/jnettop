@@ -14,14 +14,14 @@ Linux/2.4	Fedora Core 1	i386	0.10.1		RUNNING
 Solaris 5.9	Solaris 5.9	i386	0.10.1		COMPILABLE
 Linux/2.4	Debian 2.2	i386	0.10.1		COMPILABLE
 Linux/2.4	RedHat 9	i386	0.10.1		COMPILABLE
-FreeBSD/4.8	FreeBSD		i386	0.10.1		COMPILABLE
+FreeBSD/4.8	FreeBSD		i386	0.10.1		RUNNING
+FreeBSD/5.1	FreeBSD		i386	0.10.1		RUNNING (1)
+OpenBSD/3.4	OpenBSD		i386	0.10.1		COMPILABLE
+NetBSD/1.6.1	NetBSD		i386	0.10.1		COMPILABLE
 
 Notes:
 
-(1) I was not able to compile gettext on MacOS X 10.1 due to a CC internal
-    error (gettext is glib2 requirement)
-(2) Latest gcc version is required or it is necessary to disable
-    optimalizations. I had problems with gcc 2.95.2.
+(1) --disable-multithreaded-resolver option is necessary for configure.
 
 Explanation:
 
@@ -31,4 +31,4 @@ COMPILABLE      Package can be built, but I didn't have root access to test,
                 whether it actually works.
 RUNNING         Package can be compiled and it worked.
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/PORTING,v 1.8 2004-10-01 22:43:35 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/PORTING,v 1.9 2004-10-04 09:52:55 merunka Exp $

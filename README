@@ -13,6 +13,11 @@ Just in case you wanted to write me any comments, hints, postcards, herritage
 announcements, love, wish, abuse etc., feel free to use my email, j@kubs.cz,
 please include "jnettop" in the subject of your mail(!!).
 
+-- FreeBSD Notes --
+
+Is jnettop crashing under your FreeBSD? Try passing
+--disable-multithreaded-resolver to configure script and recompile.
+
 -- Aggregation --
 
   (What is it?)
@@ -183,5 +188,5 @@ Copyright (C) 2002, 2003, 2004 Jakub Skopal
 Portions of the package are taken from the tcpdump project and their rights are
 held by their respective owners stated in the beginning of the files.
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/README,v 1.14 2004-10-01 22:43:35 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/README,v 1.15 2004-10-04 09:52:55 merunka Exp $
 
