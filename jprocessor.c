@@ -1,23 +1,47 @@
+/*
+ *    jnettop, network online traffic visualiser
+ *    Copyright (C) 2002-2005 Jakub Skopal
+ *
+ *    This program is free software; you can redistribute it and/or modify
+ *    it under the terms of the GNU General Public License as published by
+ *    the Free Software Foundation; either version 2 of the License, or
+ *    (at your option) any later version.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
+ *
+ *    You should have received a copy of the GNU General Public License
+ *    along with this program; if not, write to the Free Software
+ *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jprocessor.c,v 1.3 2005-06-30 19:55:19 merunka Exp $
+ *
+ */
+
 #include "jbase.h"
 #include "jcapture.h"
 #include "jprocessor.h"
+#include "jresolv.h"
+#include "jfilter.h"
 #include "jresolver.h"
 
 GThread			*processorThread;
-GThread			*cleanupThread;
+GThread			*heartbeatThread;
 GHashTable		*streamTable;
 GMutex			*streamTableMutex;
+GPtrArray		*streamArray;
+GMutex			*streamArrayMutex;
 
 jprocessor_stats	jprocessor_Stats;
-GPtrArray		*jprocessor_StreamArray;
-GMutex			*jprocessor_StreamArrayMutex;
-GCond			*jprocessor_StreamArrayCond;
 guint			jprocessor_LocalAggregation;
 guint			jprocessor_RemoteAggregation;
 gboolean		jprocessor_ContentFiltering;
 gboolean		jprocessor_Sorting;
 GCompareFunc		jprocessor_SortingFunction;
 gint			jprocessor_MaxDeadTime;
+ProcessStreamsFunc	jprocessor_ProcessStreamsFunc;
 
 static void freeStream(gpointer ptr) {
 	jbase_stream *s = (jbase_stream *)ptr;
@@ -28,12 +52,12 @@ static void freeStream(gpointer ptr) {
 
 static void	markAllAsDead() {
 	int i;
-	g_mutex_lock(jprocessor_StreamArrayMutex);
-	for (i=0; i<jprocessor_StreamArray->len; i++) {
-		jbase_stream *s = (jbase_stream *)g_ptr_array_index(jprocessor_StreamArray, i);
+	g_mutex_lock(streamArrayMutex);
+	for (i=0; i<streamArray->len; i++) {
+		jbase_stream *s = (jbase_stream *)g_ptr_array_index(streamArray, i);
 		s->dead=6;
 	}
-	g_mutex_unlock(jprocessor_StreamArrayMutex);
+	g_mutex_unlock(streamArrayMutex);
 }
 
 void		jprocessor_SetLocalAggregation(guint localAggregation) {
@@ -52,6 +76,12 @@ void		jprocessor_SetRemoteAggregation(guint remoteAggregation) {
 
 void		jprocessor_SetContentFiltering(gboolean value) {
 	jprocessor_ContentFiltering = value;
+}
+
+void		jprocessor_SetProcessStreamsFunc(ProcessStreamsFunc function) {
+	g_mutex_lock(streamArrayMutex);
+	jprocessor_ProcessStreamsFunc = function;
+	g_mutex_unlock(streamArrayMutex);
 }
 
 static guint hashStream(gconstpointer key) {
@@ -85,9 +115,8 @@ static gboolean compareStream(gconstpointer a, gconstpointer b) {
 gboolean	jprocessor_Setup() {
 	streamTable = g_hash_table_new((GHashFunc)hashStream, (GEqualFunc)compareStream);
 	streamTableMutex = g_mutex_new();
-	jprocessor_StreamArray = g_ptr_array_new();
-	jprocessor_StreamArrayMutex = g_mutex_new();
-	jprocessor_StreamArrayCond = g_cond_new();
+	streamArray = g_ptr_array_new();
+	streamArrayMutex = g_mutex_new();
 	jprocessor_ResetStats();
 	jprocessor_Sorting = TRUE;
 	jprocessor_SortingFunction = (GCompareFunc) jprocessor_compare_ByBytesStat;
@@ -107,8 +136,8 @@ void	jprocessor_ResetStats() {
 	memset(&jprocessor_Stats, 0, sizeof(jprocessor_Stats));
 	g_get_current_time(&jprocessor_Stats.startTime);
 
-	for (i=jprocessor_StreamArray->len-1; i>=0; i--) {
-		g_ptr_array_remove_index_fast(jprocessor_StreamArray, i);
+	for (i=streamArray->len-1; i>=0; i--) {
+		g_ptr_array_remove_index_fast(streamArray, i);
 	}
 	g_hash_table_foreach_remove(streamTable, (GHRFunc)removeStreamTableEntry, NULL);
 }
@@ -124,8 +153,8 @@ void	jprocessor_UpdateBPS() {
 	g_get_current_time(&currentDateTime);
 	currentDateTime.tv_sec ++;
 
-	for (i=0; i<jprocessor_StreamArray->len; i++) {
-		jbase_stream *s = (jbase_stream *)g_ptr_array_index(jprocessor_StreamArray, i);
+	for (i=0; i<streamArray->len; i++) {
+		jbase_stream *s = (jbase_stream *)g_ptr_array_index(streamArray, i);
 		int byteswindow = ( currentDateTime.tv_sec - s->firstSeen.tv_sec );
 		if (byteswindow > HISTORY_LENGTH)
 			byteswindow = HISTORY_LENGTH;
@@ -200,7 +229,7 @@ static void	sortPacket(const jbase_packet *packet) {
 	jprocessor_Stats.totalBytes += packet->header.len;
 	jprocessor_Stats.totalPackets ++;
 	memset(&packetStream, 0, sizeof(jbase_stream));
-	resolveStream(packet, &packetStream, payloadInfo);
+	jresolv_ResolveStream(packet, &packetStream, payloadInfo);
 	aggregateStream(&packetStream);
 	g_mutex_lock(streamTableMutex);
 	stat = (jbase_stream *)g_hash_table_lookup(streamTable, &packetStream);
@@ -212,14 +241,14 @@ static void	sortPacket(const jbase_packet *packet) {
 		g_mutex_unlock(streamTableMutex);
 
 		if (jprocessor_ContentFiltering)
-			assignDataFilter(stat);
+			jfilter_AssignDataFilter(stat);
 		
 		stat->srcresolv = jresolver_Lookup(JBASE_AF(packetStream.proto), &packetStream.src);
 		stat->dstresolv = jresolver_Lookup(JBASE_AF(packetStream.proto), &packetStream.dst);
 
-		g_mutex_lock(jprocessor_StreamArrayMutex);
-		g_ptr_array_add(jprocessor_StreamArray, stat);
-		g_mutex_unlock(jprocessor_StreamArrayMutex);
+		g_mutex_lock(streamArrayMutex);
+		g_ptr_array_add(streamArray, stat);
+		g_mutex_unlock(streamArrayMutex);
 	} else {
 		g_mutex_unlock(streamTableMutex);
 	}
@@ -275,27 +304,27 @@ static gpointer processorThreadFunc(gpointer data) {
 	return NULL;
 }
 
-static gpointer cleanupThreadFunc(gpointer data) {
+static gpointer heartbeatThreadFunc(gpointer data) {
 	threadCount ++;
 
 	while (jcapture_IsRunning) {
 		guint		i;
 		GTimeVal	t;
 
-		g_mutex_lock(jprocessor_StreamArrayMutex);
+		g_mutex_lock(streamArrayMutex);
 
-		if (jprocessor_StreamArray->len > 0) {
+		if (streamArray->len > 0) {
 			jprocessor_UpdateBPS();
 			if (jprocessor_Sorting)
-				g_ptr_array_sort(jprocessor_StreamArray, jprocessor_SortingFunction);
+				g_ptr_array_sort(streamArray, jprocessor_SortingFunction);
 		}
 
 		g_mutex_lock(streamTableMutex);
 
-		for (i=0; i<jprocessor_StreamArray->len; i++) {
-			jbase_stream *s = (jbase_stream *)g_ptr_array_index(jprocessor_StreamArray, i);
+		for (i=0; i<streamArray->len; i++) {
+			jbase_stream *s = (jbase_stream *)g_ptr_array_index(streamArray, i);
 			if (s->dead && ++s->dead > jprocessor_MaxDeadTime && !s->displayed) {
-				g_ptr_array_remove_index_fast ( jprocessor_StreamArray, i );
+				g_ptr_array_remove_index_fast ( streamArray, i );
 				g_hash_table_remove ( streamTable, s );
 				freeStream(s);
 				i--;
@@ -303,8 +332,12 @@ static gpointer cleanupThreadFunc(gpointer data) {
 		}
 
 		g_mutex_unlock(streamTableMutex);
-		g_cond_broadcast(jprocessor_StreamArrayCond);
-		g_mutex_unlock(jprocessor_StreamArrayMutex);
+
+		if (jprocessor_ProcessStreamsFunc != NULL) {
+			jprocessor_ProcessStreamsFunc(streamArray);
+		}
+
+		g_mutex_unlock(streamArrayMutex);
 
 		g_get_current_time(&t);
 		g_usleep(1000000 - t.tv_usec);
@@ -316,7 +349,7 @@ static gpointer cleanupThreadFunc(gpointer data) {
 
 gboolean	jprocessor_Start() {
 	processorThread = g_thread_create((GThreadFunc)processorThreadFunc, NULL, FALSE, NULL);
-	cleanupThread = g_thread_create((GThreadFunc)cleanupThreadFunc, NULL, FALSE, NULL);
+	heartbeatThread = g_thread_create((GThreadFunc)heartbeatThreadFunc, NULL, FALSE, NULL);
 	return TRUE;
 }
 

@@ -1,6 +1,6 @@
 /*
  *    jnettop, network online traffic visualiser
- *    Copyright (C) 2002 Jakub Skopal
+ *    Copyright (C) 2002-2005 Jakub Skopal
  *
  *    This program is free software; you can redistribute it and/or modify
  *    it under the terms of the GNU General Public License as published by
@@ -16,14 +16,14 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.12 2005-06-30 13:58:52 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.13 2005-06-30 19:55:19 merunka Exp $
  * 
  */
 
-#include "jnettop.h"
+#include "jbase.h"
 #include <netinet/ip6.h>
 
-gboolean resolveStreamTCP(const gchar *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
+static gboolean resolveStreamTCP(const gchar *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	guint	hlen;
 	const struct tcphdr *tcp = (const struct tcphdr *)data;
 	if (len < sizeof(struct tcphdr)) {
@@ -41,7 +41,7 @@ gboolean resolveStreamTCP(const gchar *data, guint len, jbase_stream *stream, jb
 	return TRUE;
 }
 
-gboolean resolveStreamUDP(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
+static gboolean resolveStreamUDP(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	const struct udphdr *udp = (const struct udphdr *)data;
 	if (len < sizeof(struct udphdr)) {
 		return FALSE;
@@ -54,7 +54,7 @@ gboolean resolveStreamUDP(const gchar  *data, guint len, jbase_stream *stream, j
 	return TRUE;
 }
 
-gboolean resolveStreamICMP(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
+static gboolean resolveStreamICMP(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	const struct icmp *icmp = (const struct icmp *)data;
 	if (len < sizeof(struct icmp)) {
 		return FALSE;
@@ -64,7 +64,7 @@ gboolean resolveStreamICMP(const gchar  *data, guint len, jbase_stream *stream, 
 	return TRUE;
 }
 
-gboolean resolveStreamIP(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
+static gboolean resolveStreamIP(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	guint	hlen;
 	const struct ip	*ip = (const struct ip *)data;
 	if (len < sizeof(struct ip)) {
@@ -105,7 +105,7 @@ gboolean resolveStreamIP(const gchar  *data, guint len, jbase_stream *stream, jb
 	return TRUE;
 }
 
-gboolean resolveStreamTCP6(const gchar *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
+static gboolean resolveStreamTCP6(const gchar *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	guint	hlen;
 	const struct tcphdr *tcp = (const struct tcphdr *)data;
 	if (len < sizeof(struct tcphdr)) {
@@ -123,7 +123,7 @@ gboolean resolveStreamTCP6(const gchar *data, guint len, jbase_stream *stream, j
 	return TRUE;
 }
 
-gboolean resolveStreamUDP6(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
+static gboolean resolveStreamUDP6(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	const struct udphdr *udp = (const struct udphdr *)data;
 	if (len < sizeof(struct udphdr)) {
 		return FALSE;
@@ -136,7 +136,7 @@ gboolean resolveStreamUDP6(const gchar  *data, guint len, jbase_stream *stream, 
 	return TRUE;
 }
 
-gboolean resolveStreamICMP6(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
+static gboolean resolveStreamICMP6(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	const struct icmp6_hdr *icmp = (const struct icmp6_hdr *)data;
 	if (len < sizeof(struct icmp6_hdr)) {
 		return FALSE;
@@ -146,7 +146,7 @@ gboolean resolveStreamICMP6(const gchar  *data, guint len, jbase_stream *stream,
 	return TRUE;
 }
 
-gboolean resolveStreamIP6(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
+static gboolean resolveStreamIP6(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	const struct ip6_hdr	*ip = (const struct ip6_hdr *)data;
 	if (len < sizeof(struct ip6_hdr)) {
 		return FALSE;
@@ -173,12 +173,12 @@ gboolean resolveStreamIP6(const gchar  *data, guint len, jbase_stream *stream, j
 	return TRUE;
 }
 
-gboolean resolveStreamARP(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
+static gboolean resolveStreamARP(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	stream->proto = JBASE_PROTO_ARP;
 	return TRUE;
 }
 
-gboolean resolveStreamIPn(const jbase_packet *packet, const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
+static gboolean resolveStreamIPn(const jbase_packet *packet, const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	const struct ip	*ip = (const struct ip *)data;
 	if (len < 4) {
 		return FALSE;
@@ -192,7 +192,7 @@ gboolean resolveStreamIPn(const jbase_packet *packet, const gchar  *data, guint 
 	return FALSE;
 }
 
-gboolean resolveStreamEther(const jbase_packet *packet, const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
+static gboolean resolveStreamEther(const jbase_packet *packet, const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	if (len<NTOP_ETHER_HDRLEN) {
 		return FALSE;
 	} else
@@ -227,7 +227,7 @@ gboolean resolveStreamEther(const jbase_packet *packet, const gchar  *data, guin
 }
 
 #ifdef linux
-gboolean resolveStreamSLL(const jbase_packet *packet, const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
+static gboolean resolveStreamSLL(const jbase_packet *packet, const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	if (len<SLL_HDR_LEN) {
 		return FALSE;
 	} else
@@ -266,7 +266,7 @@ gboolean resolveStreamSLL(const jbase_packet *packet, const gchar  *data, guint 
 }
 #endif
 
-gboolean resolveStream(const jbase_packet *packet, jbase_stream *stream, jbase_payload_info *payloads) {
+gboolean jresolv_ResolveStream(const jbase_packet *packet, jbase_stream *stream, jbase_payload_info *payloads) {
 	guint		len = packet->header.caplen;
 	const gchar 	*data = packet->data;
 	gboolean	result;

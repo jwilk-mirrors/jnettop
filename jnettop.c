@@ -1,6 +1,6 @@
 /*
  *    jnettop, network online traffic visualiser
- *    Copyright (C) 2002 Jakub Skopal
+ *    Copyright (C) 2002-2005 Jakub Skopal
  *
  *    This program is free software; you can redistribute it and/or modify
  *    it under the terms of the GNU General Public License as published by
@@ -16,13 +16,20 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.31 2005-06-30 15:21:50 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.32 2005-06-30 19:55:18 merunka Exp $
  *
  */
 
-#include "jnettop.h"
+#include "jbase.h"
+#include "jdevice.h"
+#include "jcapture.h"
+#include "jprocessor.h"
+#include "jresolver.h"
+#include "jresolv.h"
+#include "jfilter.h"
+#include "jutil.h"
 
-FILE *		debugFile = NULL;
+FILE *			debugFile = NULL;
 
 volatile int		threadCount;
 
@@ -42,9 +49,6 @@ char		*newBPFFilterName;
 
 char		*commandLineRule;
 
-GThread		*sorterThread;
-GThread		*displayThread;
-
 GMutex		*displayStreamsMutex;
 jbase_stream	**displayStreams;
 int		displayStreamsCount;
@@ -55,7 +59,6 @@ gboolean	onoffPackets;
 
 gboolean	setting_onoffContentFiltering;
 gboolean	setting_onoffPromisc;
-
 guint		setting_localAggregation;
 guint		setting_remoteAggregation;
 
@@ -217,53 +220,37 @@ void drawHeader() {
 	attroff(A_REVERSE);
 }
 
-gpointer sorterThreadFunc(gpointer data) {
-	threadCount ++;
+void processStreamsFunc(GPtrArray * streamArray) {
+	guint		i, j;
+	int		lines,oldLines;
+	jbase_stream	**streams,**oldStreams;
 
-	while (jcapture_IsRunning) {
-		guint		i, j;
-		int		lines,oldLines;
-		jbase_stream	**streams,**oldStreams;
-		GTimeVal	t;
-
-		lines = (activeLines - 8) / 3;
-
-		streams = g_new0(jbase_stream *, lines);
-		
-		g_mutex_lock(jprocessor_StreamArrayMutex);
-		g_get_current_time(&t);
-		t.tv_sec ++;
-		if (g_cond_timed_wait(jprocessor_StreamArrayCond, jprocessor_StreamArrayMutex, &t)) {
-			for (i=0,j=0; i<jprocessor_StreamArray->len && j<lines; i++) {
-				jbase_stream *s = (jbase_stream *)g_ptr_array_index(jprocessor_StreamArray, i);
-				if (s->dead > 5) {
-					continue;
-				}
-				s->displayed ++;
-				streams[j++] = s;
-			}
-			lines = j;
-			g_mutex_unlock(jprocessor_StreamArrayMutex);
-
-			g_mutex_lock(displayStreamsMutex);
-			oldStreams = displayStreams;
-			oldLines   = displayStreamsCount;
-			displayStreams = streams;
-			displayStreamsCount = lines;
-			g_mutex_unlock(displayStreamsMutex);
-
-			for (i=0; i<oldLines; i++) {
-				oldStreams[i]->displayed --;
-			}
-			if (oldStreams)
-				g_free(oldStreams);
-		} else {
-			g_mutex_unlock(jprocessor_StreamArrayMutex);
+	lines = (activeLines - 8) / 3;
+	streams = g_new0(jbase_stream *, lines);
+	
+	for (i=0,j=0; i<streamArray->len && j<lines; i++) {
+		jbase_stream *s = (jbase_stream *)g_ptr_array_index(streamArray, i);
+		if (s->dead > 5) {
+			continue;
 		}
+		s->displayed ++;
+		streams[j++] = s;
+	}
+	lines = j;
+
+	g_mutex_lock(displayStreamsMutex);
+	oldStreams = displayStreams;
+	oldLines   = displayStreamsCount;
+	displayStreams = streams;
+	displayStreamsCount = lines;
+	g_mutex_unlock(displayStreamsMutex);
+
+	for (i=0; i<oldLines; i++) {
+		oldStreams[i]->displayed --;
 	}
 
-	threadCount --;
-	return NULL;
+	if (oldStreams)
+		g_free(oldStreams);
 }
 
 void	doDisplayStreams() {
@@ -322,8 +309,7 @@ void    doDisplayWholeScreen() {
 	werase(listWindow);
 }
 
-gpointer displayThreadFunc(gpointer data) {
-	threadCount ++;
+void displayLoop() {
 	g_usleep(500000);
 
 	while (jcapture_IsRunning) {
@@ -452,9 +438,6 @@ gpointer displayThreadFunc(gpointer data) {
 			}
 		}
 	}
-
-	threadCount --;
-	return NULL;
 }
 
 int	config_parse_boolean(GScanner *s) {
@@ -798,6 +781,7 @@ int main(int argc, char ** argv) {
 	jprocessor_SetLocalAggregation(setting_localAggregation);
 	jprocessor_SetRemoteAggregation(setting_remoteAggregation);
 	jprocessor_SetContentFiltering(setting_onoffContentFiltering);
+	jprocessor_SetProcessStreamsFunc((ProcessStreamsFunc) processStreamsFunc);
 
 	if (selectRuleName) {
 		int i;
@@ -889,11 +873,8 @@ int main(int argc, char ** argv) {
 		drawScreen();
 		
 		jcapture_Start();
-
-		sorterThread = g_thread_create((GThreadFunc)sorterThreadFunc, NULL, FALSE, NULL);
 		jprocessor_Start();
-		displayThread = g_thread_create((GThreadFunc)displayThreadFunc, NULL, TRUE, NULL);
-		g_thread_join(displayThread);
+		displayLoop();
 
 		if (!newDevice && !newBPFFilter) {
 			// In case we're not switching to another device, we can happily finish

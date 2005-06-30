@@ -1,3 +1,25 @@
+/*
+ *    jnettop, network online traffic visualiser
+ *    Copyright (C) 2002-2005 Jakub Skopal
+ *
+ *    This program is free software; you can redistribute it and/or modify
+ *    it under the terms of the GNU General Public License as published by
+ *    the Free Software Foundation; either version 2 of the License, or
+ *    (at your option) any later version.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
+ *
+ *    You should have received a copy of the GNU General Public License
+ *    along with this program; if not, write to the Free Software
+ *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jbase.h,v 1.2 2005-06-30 19:55:18 merunka Exp $
+ *
+ */
+
 #ifndef __JBASE_H__
 #define __JBASE_H__
 
@@ -46,6 +68,7 @@
 #include <time.h>
 #include <netdb.h>
 #include <sys/ioctl.h>
+#include <netinet/ip6.h>
 
 #define HISTORY_LENGTH			5
 #define FREEPACKETSTACK_PEEK		50
@@ -182,12 +205,6 @@ typedef struct __jbase_stream {
 #define JBASE_AF(a)		(JBASE_IS_IPV6(a) ? AF_INET6 : AF_INET)
 
 extern gchar  *JBASE_PROTOCOLS[];
-
-// forward declaration of jresolv exports
-gboolean	resolveStream(const jbase_packet *packet, jbase_stream *stream, jbase_payload_info *payloads);
-
-// forward declaration of jfilter exports
-void		assignDataFilter(jbase_stream *stream);
 
 #define AGG_UNKNOWN		(-1)
 #define AGG_NONE		0

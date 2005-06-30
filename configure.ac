@@ -1,8 +1,8 @@
 #
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/configure.ac,v 1.22 2004-10-01 22:43:36 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/configure.ac,v 1.23 2005-06-30 19:55:18 merunka Exp $
 #
 # Process this file with autoconf to produce a configure script.
-AC_INIT([jnettop], [0.10.1], [j@kubs.cz])
+AC_INIT([jnettop], [0.11.0], [j@kubs.cz])
 AM_INIT_AUTOMAKE
 
 # Checks for programs.

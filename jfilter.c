@@ -1,6 +1,6 @@
 /*
  *    jnettop, network online traffic visualiser
- *    Copyright (C) 2002 Jakub Skopal
+ *    Copyright (C) 2002-2005 Jakub Skopal
  *
  *    This program is free software; you can redistribute it and/or modify
  *    it under the terms of the GNU General Public License as published by
@@ -16,13 +16,13 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jfilter.c,v 1.4 2005-06-30 13:58:52 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jfilter.c,v 1.5 2005-06-30 19:55:18 merunka Exp $
  * 
  */
 
-#include "jnettop.h"
+#include "jbase.h"
 
-void freeGenericFilterData(struct __jbase_stream *stream) {
+static void freeGenericFilterData(struct __jbase_stream *stream) {
 	g_free(stream->filterData);
 }
 
@@ -32,7 +32,7 @@ struct ___httpFilterData {
 	gboolean	direction;
 };
 
-void filterHTTPFunc(struct __jbase_stream *stream, const struct __jbase_packet *packet, gboolean direction, const struct __jbase_payload_info *pi) {
+static void filterHTTPFunc(struct __jbase_stream *stream, const struct __jbase_packet *packet, gboolean direction, const struct __jbase_payload_info *pi) {
 	struct ___httpFilterData *fd = (struct ___httpFilterData *)stream->filterData;
 	const gchar *data;
 	guint len;
@@ -58,7 +58,7 @@ void filterHTTPFunc(struct __jbase_stream *stream, const struct __jbase_packet *
 	}
 }
 
-void assignHTTPFilter(jbase_stream *stream, gboolean direction) {
+static void assignHTTPFilter(jbase_stream *stream, gboolean direction) {
 	struct ___httpFilterData *fd;
 	stream->filterDataFunc = filterHTTPFunc;
 	stream->filterData = (guchar*)(fd = g_new0(struct ___httpFilterData, 1));
@@ -75,7 +75,7 @@ struct ___smtpFilterData {
 	gchar		from[512], to[512];
 };
 
-void filterSMTPFunc(struct __jbase_stream *stream, const struct __jbase_packet *packet, gboolean direction, const struct __jbase_payload_info *pi) {
+static void filterSMTPFunc(struct __jbase_stream *stream, const struct __jbase_packet *packet, gboolean direction, const struct __jbase_payload_info *pi) {
 	struct ___smtpFilterData *fd = (struct ___smtpFilterData *)stream->filterData;
 	const gchar *data;
 	guint len;
@@ -119,7 +119,7 @@ void filterSMTPFunc(struct __jbase_stream *stream, const struct __jbase_packet *
 	}
 }
 
-void assignSMTPFilter(jbase_stream *stream, gboolean direction) {
+static void assignSMTPFilter(jbase_stream *stream, gboolean direction) {
 	struct ___smtpFilterData *fd;
 	stream->filterDataFunc = filterSMTPFunc;
 	stream->filterData = (guchar*) (fd = g_new0(struct ___smtpFilterData, 1));
@@ -135,7 +135,7 @@ void assignSMTPFilter(jbase_stream *stream, gboolean direction) {
 		return; \
 	}
 
-void assignDataFilter(jbase_stream *stream) {
+void jfilter_AssignDataFilter(jbase_stream *stream) {
 	IF_TCP_PORT_THEN_ASSIGN(80, assignHTTPFilter);
 	IF_TCP_PORT_THEN_ASSIGN(8080, assignHTTPFilter);
 	IF_TCP_PORT_THEN_ASSIGN(3128, assignHTTPFilter);

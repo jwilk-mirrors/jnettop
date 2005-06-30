@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.in,v 1.28 2005-06-30 15:21:49 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.in,v 1.29 2005-06-30 19:55:18 merunka Exp $
 SHELL = @SHELL@
 
 srcdir = @srcdir@
@@ -94,7 +94,7 @@ EXTRA_DIST = jnettop.spec .jnettop $(man_MANS)
 
 bin_PROGRAMS = jnettop
 
-jnettop_SOURCES = jnettop.c jutil.c jutil.h jresolver.c jresolver.h jprocessor.c jprocessor.h jcapture.c jcapture.h jdevice.c jdevice.h jbase.c jbase.h jresolv.c jfilter.c jnettop.h include/ether.h include/ethertype.h include/ip.h include/tcp.h include/udp.h include/sll.h include/icmp.h include/icmp6.h
+jnettop_SOURCES = jnettop.c jutil.c jutil.h jresolver.c jresolver.h jprocessor.c jprocessor.h jcapture.c jcapture.h jdevice.c jdevice.h jbase.c jbase.h jresolv.c jresolv.h jfilter.c jfilter.h include/ether.h include/ethertype.h include/ip.h include/tcp.h include/udp.h include/sll.h include/icmp.h include/icmp6.h
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
