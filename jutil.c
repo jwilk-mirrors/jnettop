@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jutil.c,v 1.2 2005-06-30 19:55:19 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jutil.c,v 1.3 2005-06-30 21:34:48 merunka Exp $
  *
  */
 
@@ -75,5 +75,17 @@ const char * jutil_Address2String(int af, const jbase_mutableaddress *src, char 
 #else
 # error "no funtion to convert internet address to string found by configure"
 #endif
+}
+
+guint     jutil_ParseAggregation(const char *agg) {
+	if (strcmp(agg, "none") && strcmp(agg,"host") && strcmp(agg,"port")) {
+		return AGG_UNKNOWN;
+	}
+	switch (*agg) {
+		case 'n': return AGG_NONE;
+		case 'h': return AGG_HOST;
+		case 'p': return AGG_PORT;
+	}
+	return AGG_UNKNOWN;
 }
 

@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jdevice.c,v 1.2 2005-06-30 19:55:18 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jdevice.c,v 1.3 2005-06-30 21:34:48 merunka Exp $
  *
  */
 
@@ -62,11 +62,11 @@ gboolean jdevice_LookupDevices() {
 	return TRUE;
 }
 
-gboolean jdevice_CreateSingleDevice(const gchar *deviceName) {
+jbase_device * jdevice_CreateSingleDevice(const gchar *deviceName) {
 	jdevice_DevicesCount = 1;
 	jdevice_Devices = g_new(jbase_device, 1);
 	jdevice_Devices[0].name = g_strndup(deviceName, strlen(deviceName));
-	return TRUE;
+	return jdevice_Devices;
 }
 
 gboolean jdevice_CheckDevices() {

@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jdevice.h,v 1.2 2005-06-30 19:55:18 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jdevice.h,v 1.3 2005-06-30 21:34:48 merunka Exp $
  *
  */
 
@@ -26,7 +26,7 @@
 #include "jbase.h"
 
 gboolean jdevice_LookupDevices();
-gboolean jdevice_CreateSingleDevice(const gchar *deviceName);
+jbase_device * jdevice_CreateSingleDevice(const gchar *deviceName);
 
 gboolean jdevice_CheckDevices();
 

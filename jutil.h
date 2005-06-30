@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jutil.h,v 1.2 2005-06-30 19:55:19 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jutil.h,v 1.3 2005-06-30 21:34:48 merunka Exp $
  *
  */
 
@@ -26,7 +26,8 @@
 #include "jbase.h"
 
 const char * jutil_ValidateBPFFilter(char *filter);
-int	jutil_IsHostAggregation(int af, const jbase_mutableaddress *addr);
+int jutil_IsHostAggregation(int af, const jbase_mutableaddress *addr);
 const char * jutil_Address2String(int af, const jbase_mutableaddress *src, char *dst, size_t cnt);
+guint jutil_ParseAggregation(const char *agg);
 
 #endif

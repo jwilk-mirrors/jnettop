@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.32 2005-06-30 19:55:18 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.33 2005-06-30 21:34:48 merunka Exp $
  *
  */
 
@@ -28,26 +28,17 @@
 #include "jresolv.h"
 #include "jfilter.h"
 #include "jutil.h"
+#include "jconfig.h"
 
 FILE *			debugFile = NULL;
 
 volatile int		threadCount;
 
-const jbase_device	*newDevice;
-
 GMutex		*statusMutex;
 char		*statusMessage;
 GTimeVal	statusTimeout;
 
-char		*configFileName;
-GPtrArray	*bpfFilters;
-char		*configDeviceName;
-
-char		*activeBPFFilterName;
-char		*newBPFFilter;
-char		*newBPFFilterName;
-
-char		*commandLineRule;
+gboolean	recycleJnettop;
 
 GMutex		*displayStreamsMutex;
 jbase_stream	**displayStreams;
@@ -56,11 +47,6 @@ gchar 		line0FormatString[512], line1FormatString[512], line2FormatString[512];
 
 gboolean	onoffBitValues;
 gboolean	onoffPackets;
-
-gboolean	setting_onoffContentFiltering;
-gboolean	setting_onoffPromisc;
-guint		setting_localAggregation;
-guint		setting_remoteAggregation;
 
 #define		DISPLAYMODE_NORMAL		0
 #define		DISPLAYMODE_BPFFILTERS		1
@@ -185,7 +171,7 @@ void drawHeader() {
 	mvprintw(0, 4, "%s", timeBuffer);
 	if (jcapture_ActiveDevice)
 		mvprintw(0, 21, "%-10s", jcapture_ActiveDevice->name);
-	mvprintw(0, 45, "%-29.29s", activeBPFFilterName?activeBPFFilterName:"none");
+	mvprintw(0, 45, "%-29.29s", jconfig_GetSelectedBpfFilterName());
 	mvprintw(1, 13, "%s", jprocessor_ContentFiltering?"on ":"off");
 	mvprintw(1, 23, "%s", onoffPackets ? "pckts/s" : (onoffBitValues?"bits/s ":"bytes/s"));
 	mvprintw(1, 46, "%s", JBASE_AGGREGATION[jprocessor_LocalAggregation]);
@@ -327,13 +313,10 @@ void displayLoop() {
 			mvwprintw(listWindow, 1, 0, "Select rule you want to apply:");
 			wattroff(listWindow, A_BOLD);
 			mvwprintw(listWindow, 3, 5, "[.] None");
-			if (commandLineRule) {
-				mvwprintw(listWindow, 4, 5, "[,] %s", commandLineRule);
+			for (i=0; i<JCONFIG_BPFFILTERS_LEN; i++) {
+				mvwprintw(listWindow, i+5, 5, "[%c] %s", 'a'+i, JCONFIG_BPFFILTERS_GETNAME(i));
 			}
-			for (i=0; i<bpfFilters->len/2; i++) {
-				mvwprintw(listWindow, i+5, 5, "[%c] %s", 'a'+i, g_ptr_array_index(bpfFilters, i*2));
-			}
-			if (bpfFilters->len == 0) {
+			if (JCONFIG_BPFFILTERS_LEN == 0) {
 				mvwprintw(listWindow, 6, 5, "You have no predefined filter rules. See README file for explanation");
 				mvwprintw(listWindow, 7, 5, "on how to predefine filter rules");
 			}
@@ -403,30 +386,26 @@ void displayLoop() {
 						i -= '0';
 						if (jdevice_DevicesCount>1 && jdevice_DevicesCount>i) {
 							drawStatus("Please wait, cleaning up...");
-							newDevice = jdevice_Devices + i;
+							jconfig_Settings.device = jdevice_Devices + i;
+							jconfig_Settings.deviceName = jconfig_Settings.device->name;
+							recycleJnettop = TRUE;
 							jcapture_Kill();
 						}
 						break;
 				}
 				break;
 			case DISPLAYMODE_BPFFILTERS:
-				if ((i == '.') || (commandLineRule && (i == ',')) || ((i >= 'a') && (i < 'a' + (bpfFilters->len/2)))) {
+				if ((i == '.') || ((i >= 'a') && (i < 'a' + (JCONFIG_BPFFILTERS_LEN)))) {
 					drawStatus("Please wait, cleaning up...");
 					switch (i) {
 					case '.':
-						newBPFFilter = NULL;
-						newBPFFilterName = NULL;
-						break;
-					case ',':
-						newBPFFilterName = commandLineRule;
-						newBPFFilter = commandLineRule;
+						JCONFIG_BPFFILTERS_SETNONE;
 						break;
 					default:
-						newBPFFilter = g_ptr_array_index(bpfFilters, (i - 'a')*2 + 1);
-						newBPFFilterName = (char *) g_ptr_array_index(bpfFilters, (i - 'a')*2 );
+						JCONFIG_BPFFILTERS_SETSELECTEDFILTER(i-'a');
 						break;
 					}
-					newDevice = jcapture_ActiveDevice;
+					recycleJnettop = TRUE;
 					jcapture_Kill();
 					displayMode = DISPLAYMODE_NORMAL;
 					break;
@@ -440,214 +419,13 @@ void displayLoop() {
 	}
 }
 
-int	config_parse_boolean(GScanner *s) {
-	GTokenType tt;
-	tt = g_scanner_get_next_token(s);
-	if (tt != G_TOKEN_IDENTIFIER || (strcmp(s->value.v_identifier, "on") && strcmp(s->value.v_identifier,"off"))) {
-		return -1;
-	}
-	return strcmp(s->value.v_identifier, "off")?TRUE:FALSE;
-}
-
-int     parse_aggregation(const char *agg) {
-	if (strcmp(agg, "none") && strcmp(agg,"host") && strcmp(agg,"port")) {
-		return AGG_UNKNOWN;
-	}
-	switch (*agg) {
-		case 'n': return AGG_NONE;
-		case 'h': return AGG_HOST;
-		case 'p': return AGG_PORT;
-	}
-	return AGG_UNKNOWN;
-}
-
-int	config_parse_aggregation(GScanner *s) {
-	GTokenType tt;
-	tt = g_scanner_get_next_token(s);
-	if (tt != G_TOKEN_IDENTIFIER) {
-		return AGG_UNKNOWN;
-	}
-	return parse_aggregation(s->value.v_identifier);
-}
-
-
-void	readConfig() {
-	FILE *f;
-	GScanner *s;
-	GHashTable *variables;
-	char *homeDir;
-
-	variables = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
-
-	if (!configFileName) {
-		homeDir = getenv("HOME");
-		if (!homeDir) {
-			configFileName = ".jnettop";
-		} else {
-			configFileName = g_new0(char, strlen(homeDir) + 10);
-			sprintf(configFileName, "%s/.jnettop", homeDir);
-		}
-	}
-
-	f = fopen(configFileName, "r");
-	if (!f) {
-		fprintf(stderr, "Could not read/find config file %s: %s.\n", configFileName, strerror(errno));
-		return;
-	}
-
-	s = g_scanner_new(NULL);
-	g_scanner_input_file(s, fileno(f));
-	while (!g_scanner_eof(s)) {
-		GTokenType tt;
-		int line;
-
-		line = s->line;
-		tt = g_scanner_get_next_token(s);
-		if (tt == G_TOKEN_EOF) {
-			break;
-		}
-		if (tt != G_TOKEN_IDENTIFIER) {
-			fprintf(stderr, "Parse error on line %d: identifier expected.\n", line);
-			exit(255);
-		}
-		if (!g_ascii_strcasecmp(s->value.v_identifier, "variable")) {
-			char * variableName, * variableValue;
-			tt = g_scanner_get_next_token(s);
-			if (tt != G_TOKEN_STRING) {
-				fprintf(stderr, "Parse error on line %d: variable name as string expected.\n", line);
-				exit(255);
-			}
-			variableName = g_strdup(s->value.v_string);
-			tt = g_scanner_get_next_token(s);
-			if (tt != G_TOKEN_STRING) {
-				fprintf(stderr, "Parse error on line %d: variable value as string expected.\n", line);
-				exit(255);
-			}
-			variableValue = g_strdup(s->value.v_string);
-			g_hash_table_insert(variables, variableName, variableValue);
-			continue;
-		}
-		if (!g_ascii_strcasecmp(s->value.v_identifier, "rule")) {
-			char * ruleName;
-			char * c;
-			GString *str;
-			tt = g_scanner_get_next_token(s);
-			if (tt != G_TOKEN_STRING) {
-				fprintf(stderr, "Parse error on line %d: rule name as string expected.\n", line);
-				exit(255);
-			}
-			ruleName = g_strdup(s->value.v_string);
-			tt = g_scanner_get_next_token(s);
-			if (tt != G_TOKEN_STRING) {
-				fprintf(stderr, "Parse error on line %d: rule expression as string expected.\n", line);
-				exit(255);
-			}
-			str = g_string_new("");
-			for (c=s->value.v_string; *c; c++) {
-				char * rightBracket;
-				char * variableValue;
-				if (*c == '$' && *(c+1) == '{') {
-					rightBracket = strchr(c, '}');
-					c += 2;
-					if (!rightBracket) {
-						fprintf(stderr, "Wrong variable substitution on line %d!\n", line);
-						exit(255);
-					}
-					*rightBracket = '\0';
-					variableValue = g_hash_table_lookup(variables, c);
-					if (!variableValue) {
-						fprintf(stderr, "Undefined variable %s on line %d!\n", c, line);
-						exit(255);
-					}
-					g_string_append(str, variableValue);
-					c = rightBracket;
-				} else {
-					g_string_append_c(str, *c);
-				}
-			}
-			g_ptr_array_add(bpfFilters, ruleName);
-			g_ptr_array_add(bpfFilters, str->str);
-			g_string_free(str, FALSE);
-			continue;
-		}
-		if (!g_ascii_strcasecmp(s->value.v_identifier, "interface")) {
-			tt = g_scanner_get_next_token(s);
-			if (tt != G_TOKEN_STRING) {
-				fprintf(stderr, "Parse error on line %d: interface name as string expected.\n", line);
-				exit(255);
-			}
-			configDeviceName = g_strdup(s->value.v_string);
-			continue;
-		}
-		if (!g_ascii_strcasecmp(s->value.v_identifier, "promisc")) {
-			int val = config_parse_boolean(s);
-			if (val == -1) {
-				fprintf(stderr, "Parse error on line %d: expecting on or off value.\n", line);
-				exit(255);
-			}
-			if (setting_onoffPromisc == -1)
-				setting_onoffPromisc = val;
-			continue;
-		}
-		if (!g_ascii_strcasecmp(s->value.v_identifier, "local_aggregation")) {
-			int val = config_parse_aggregation(s);
-			if (val == AGG_UNKNOWN) {
-				fprintf(stderr, "Parse error on line %d: expecting none or host or port.\n", line);
-				exit(255);
-			}
-			if (setting_localAggregation == AGG_UNKNOWN)
-				setting_localAggregation = val;
-			continue;
-		}
-		if (!g_ascii_strcasecmp(s->value.v_identifier, "remote_aggregation")) {
-			int val = config_parse_aggregation(s);
-			if (val == AGG_UNKNOWN) {
-				fprintf(stderr, "Parse error on line %d: expecting none or host or port.\n", line);
-				exit(255);
-			}
-			if (setting_remoteAggregation == AGG_UNKNOWN)
-				setting_remoteAggregation = val;
-			continue;
-		}
-		if (!g_ascii_strcasecmp(s->value.v_identifier, "select_rule")) {
-			char * ruleName;
-			int i;
-			tt = g_scanner_get_next_token(s);
-			if (tt != G_TOKEN_STRING) {
-				fprintf(stderr, "Parse error on line %d: rule name as string expected.\n", line);
-				exit(255);
-			}
-			ruleName = g_strdup(s->value.v_string);
-			for (i=0; i<bpfFilters->len/2; i++) {
-				char * iName;
-				iName = (char *)g_ptr_array_index(bpfFilters, i*2);
-				if (!strcmp(iName, ruleName)) {
-					newBPFFilter = g_ptr_array_index(bpfFilters, i*2 + 1);
-					newBPFFilterName = (char *) g_ptr_array_index(bpfFilters, i*2 );
-					break;
-				}
-			}
-			if (i<bpfFilters->len/2)
-				continue;
-			fprintf(stderr, "Parse error on line %d: rule %s not defined so far.\n", line, ruleName);
-			exit(255);
-		}
-	}
-
-	g_hash_table_destroy(variables);
-
-}
-
-int main(int argc, char ** argv) {
-	int a;
-	char * deviceName = NULL;
+void parseCommandLineAndConfig(int argc, char ** argv) {
+	char * configFileName = NULL;
 	char * selectRuleName = NULL;
+	int a;
 
-	setting_onoffContentFiltering = TRUE;
+	jconfig_Setup();
 	onoffBitValues = FALSE;
-	setting_onoffPromisc = -1;
-	setting_localAggregation = AGG_UNKNOWN;
-	setting_remoteAggregation = AGG_UNKNOWN;
 	
 	for (a=1; a<argc; a++) {
 		if (!strcmp(argv[a], "-v") || !strcmp(argv[a], "--version")) {
@@ -681,7 +459,7 @@ int main(int argc, char ** argv) {
 			continue;
 		}
 		if (!strcmp(argv[a], "-c") || !strcmp(argv[a], "--content-filter")) {
-			setting_onoffContentFiltering = FALSE;
+			jconfig_Settings.onoffContentFiltering = FALSE;
 			continue;
 		}
 		if (!strcmp(argv[a], "-i") || !strcmp(argv[a], "--interface")) {
@@ -689,7 +467,7 @@ int main(int argc, char ** argv) {
 				fprintf(stderr, "%s switch requires argument\n", argv[a]);
 				exit(255);
 			}
-			deviceName = argv[++a];
+			jconfig_Settings.deviceName = argv[++a];
 			continue;
 		}
 		if (!strcmp(argv[a], "-s") || !strcmp(argv[a], "--select-rule")) {
@@ -722,6 +500,7 @@ int main(int argc, char ** argv) {
 		}
 		if (!strcmp(argv[a], "-x") || !strcmp(argv[a], "--filter")) {
 			const char *ret;
+			char *commandLineRule;
 			if (a+1>=argc) {
 				fprintf(stderr, "%s switch requires argument\n", argv[a]);
 				exit(255);
@@ -732,23 +511,23 @@ int main(int argc, char ** argv) {
 				fprintf(stderr, "Error compiling rule: %s\n", ret);
 				exit(255);
 			}
-			newBPFFilterName = commandLineRule;
-			newBPFFilter = commandLineRule;
+			JCONFIG_BPFFILTERS_SETSELECTEDFILTER(JCONFIG_BPFFILTERS_LEN);
+			jconfig_AddBpfFilter("<commandline>", commandLineRule);
 			continue;
 		}
 		if (!strcmp(argv[a], "-p") || !strcmp(argv[a], "--promiscuous")) {
-			setting_onoffPromisc = TRUE;
+			jconfig_Settings.onoffPromisc = TRUE;
 			continue;
 		}
 		if (!strcmp(argv[a], "--local-aggr")) {
-			if (a+1>=argc || (setting_localAggregation = parse_aggregation(argv[++a]))==-1) {
+			if (a+1>=argc || (jconfig_Settings.localAggregation = jutil_ParseAggregation(argv[++a]))==-1) {
 				fprintf(stderr, "%s switch requires none, host or port as an argument\n", argv[a]);
 				exit(255);
 			}
 			continue;
 		}
 		if (!strcmp(argv[a], "--remote-aggr")) {
-			if (a+1>=argc || (setting_remoteAggregation = parse_aggregation(argv[++a]))==-1) {
+			if (a+1>=argc || (jconfig_Settings.remoteAggregation = jutil_ParseAggregation(argv[++a]))==-1) {
 				fprintf(stderr, "%s switch requires none, host or port as an argument\n", argv[a]);
 				exit(255);
 			}
@@ -758,90 +537,78 @@ int main(int argc, char ** argv) {
 		exit(255);
 	}
 
+	if (!jconfig_ParseFile(configFileName)) {
+		exit(255);
+	}
+
+	jconfig_SetDefaults();
+
+	if (selectRuleName) {
+		int i = jconfig_FindBpfFilterByName(selectRuleName);
+		if (i == -1) {
+			fprintf(stderr, "Rule '%s' specified on the command line is not defined.\n", selectRuleName);
+			exit(255);
+		}
+		JCONFIG_BPFFILTERS_SETSELECTEDFILTER(i);
+	}
+}
+
+void initializeDevices() {
+	if (!jdevice_LookupDevices()) {
+		exit(255);
+	}
+	
+	if (!jdevice_DevicesCount) {
+			if (!jconfig_Settings.deviceName) {
+				fprintf(stderr, "Autodiscovery found no devices. Specify device you want to watch with -i parameter\n");
+				exit(255);
+			}
+			if (!(jconfig_Settings.device = jdevice_CreateSingleDevice(jconfig_Settings.deviceName))) {
+				exit(255);
+			}
+	} else if (jconfig_Settings.deviceName) {
+		int i;
+		for (i=0; i<jdevice_DevicesCount; i++) {
+			if (!strcmp(jdevice_Devices[i].name, jconfig_Settings.deviceName)) {
+				jconfig_Settings.device = jdevice_Devices + i;
+				break;
+			}
+		}
+
+		if (i >= jdevice_DevicesCount) {
+			if (!(jconfig_Settings.device = jdevice_CreateSingleDevice(jconfig_Settings.deviceName))) {
+				exit(255);
+			}
+		}
+	}
+
+	if (!jconfig_Settings.device) {
+		jconfig_Settings.deviceName = jdevice_Devices[0].name;
+		jconfig_Settings.device = jdevice_Devices;
+	}
+
+	if (!jdevice_CheckDevices()) {
+		exit(255);
+	}
+}
+
+int main(int argc, char ** argv) {
+	parseCommandLineAndConfig(argc, argv);
+
 	g_thread_init(NULL);
 
 	jcapture_Setup();
 	jprocessor_Setup();
 	jresolver_Setup();
 
-	displayStreamsMutex = g_mutex_new();
-	bpfFilters = g_ptr_array_new();
-	statusMutex = g_mutex_new();
+	jconfig_ConfigureModules();
 
-	configDeviceName = NULL;
-
-	readConfig();
-
-	if (setting_localAggregation == AGG_UNKNOWN)
-		setting_localAggregation = AGG_NONE;
-	if (setting_remoteAggregation == AGG_UNKNOWN)
-		setting_remoteAggregation = AGG_NONE;
-
-	jcapture_SetPromisc( setting_onoffPromisc == -1 ? FALSE : setting_onoffPromisc );
-	jprocessor_SetLocalAggregation(setting_localAggregation);
-	jprocessor_SetRemoteAggregation(setting_remoteAggregation);
-	jprocessor_SetContentFiltering(setting_onoffContentFiltering);
 	jprocessor_SetProcessStreamsFunc((ProcessStreamsFunc) processStreamsFunc);
 
-	if (selectRuleName) {
-		int i;
-		for (i=0; i<bpfFilters->len/2; i++) {
-			char * iName;
-			iName = (char *)g_ptr_array_index(bpfFilters, i*2);
-			if (!strcmp(iName, selectRuleName)) {
-				newBPFFilter = g_ptr_array_index(bpfFilters, i*2 + 1);
-				newBPFFilterName = (char *) g_ptr_array_index(bpfFilters, i*2 );
-				break;
-			}
-		}
-		if (i>=bpfFilters->len/2) {
-			fprintf(stderr, "Rule '%s' specified on the command line is not defined.\n", selectRuleName);
-			exit(255);
-		}
-	}
+	initializeDevices();
 
-	if (!jdevice_LookupDevices()) {
-		exit(255);
-	}
-	
-	newDevice = NULL;
-
-	if (!jdevice_DevicesCount) {
-			if (!deviceName && !configDeviceName) {
-				fprintf(stderr, "Autodiscovery found no devices. Specify device you want to watch with -i parameter\n");
-				exit(255);
-			} else if (deviceName) {
-				if (!jdevice_CreateSingleDevice(deviceName)) {
-					exit(255);
-				}
-			} else {
-				if (!jdevice_CreateSingleDevice(configDeviceName)) {
-					exit(255);
-				}
-			}
-	} else if (deviceName || configDeviceName) {
-		int i;
-		if (!deviceName && configDeviceName)
-			deviceName = configDeviceName;
-		for (i=0; i<jdevice_DevicesCount; i++) {
-			if (!strcmp(jdevice_Devices[i].name, deviceName)) {
-				newDevice = jdevice_Devices + i;
-				break;
-			}
-		}
-		if (!newDevice) {
-			if (!jdevice_CreateSingleDevice(deviceName)) {
-				exit(255);
-			}
-		}
-	}
-
-	if (!newDevice)
-		newDevice = jdevice_Devices;
-
-	if (!jdevice_CheckDevices()) {
-		exit(255);
-	}
+	displayStreamsMutex = g_mutex_new();
+	statusMutex = g_mutex_new();
 
 	initscr();
 	cbreak();
@@ -851,13 +618,16 @@ int main(int argc, char ** argv) {
 	keypad(stdscr, TRUE);
 	nodelay(stdscr, TRUE);
 
-	while (newDevice) {
+	recycleJnettop = TRUE;
+
+	while (recycleJnettop) {
 
 		jprocessor_ResetStats();
 
-		jcapture_SetDevice(newDevice);
-		jcapture_SetBpfFilterText(newBPFFilter);
-		newDevice = NULL;
+		jcapture_SetDevice(jconfig_Settings.device);
+		jcapture_SetBpfFilterText(jconfig_GetSelectedBpfFilterText());
+
+		recycleJnettop = FALSE;
 		displayStreams = NULL;
 		displayStreamsCount = 0;
 
@@ -876,7 +646,7 @@ int main(int argc, char ** argv) {
 		jprocessor_Start();
 		displayLoop();
 
-		if (!newDevice && !newBPFFilter) {
+		if (!recycleJnettop) {
 			// In case we're not switching to another device, we can happily finish
 			// after our display thread dies. (mind the endwin())
 			break;

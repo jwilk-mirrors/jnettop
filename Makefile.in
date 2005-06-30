@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.in,v 1.29 2005-06-30 19:55:18 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.in,v 1.30 2005-06-30 21:34:48 merunka Exp $
 SHELL = @SHELL@
 
 srcdir = @srcdir@
@@ -94,7 +94,7 @@ EXTRA_DIST = jnettop.spec .jnettop $(man_MANS)
 
 bin_PROGRAMS = jnettop
 
-jnettop_SOURCES = jnettop.c jutil.c jutil.h jresolver.c jresolver.h jprocessor.c jprocessor.h jcapture.c jcapture.h jdevice.c jdevice.h jbase.c jbase.h jresolv.c jresolv.h jfilter.c jfilter.h include/ether.h include/ethertype.h include/ip.h include/tcp.h include/udp.h include/sll.h include/icmp.h include/icmp6.h
+jnettop_SOURCES = jnettop.c jconfig.c jconfig.h jutil.c jutil.h jresolver.c jresolver.h jprocessor.c jprocessor.h jcapture.c jcapture.h jdevice.c jdevice.h jbase.c jbase.h jresolv.c jresolv.h jfilter.c jfilter.h include/ether.h include/ethertype.h include/ip.h include/tcp.h include/udp.h include/sll.h include/icmp.h include/icmp6.h
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -103,7 +103,7 @@ CONFIG_CLEAN_FILES =
 bin_PROGRAMS = jnettop$(EXEEXT)
 PROGRAMS = $(bin_PROGRAMS)
 
-am_jnettop_OBJECTS = jnettop.$(OBJEXT) jutil.$(OBJEXT) \
+am_jnettop_OBJECTS = jnettop.$(OBJEXT) jconfig.$(OBJEXT) jutil.$(OBJEXT) \
 	jresolver.$(OBJEXT) jprocessor.$(OBJEXT) jcapture.$(OBJEXT) \
 	jdevice.$(OBJEXT) jbase.$(OBJEXT) jresolv.$(OBJEXT) \
 	jfilter.$(OBJEXT)
@@ -120,10 +120,10 @@ LIBS = @LIBS@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
 @AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/jbase.Po ./$(DEPDIR)/jcapture.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/jdevice.Po ./$(DEPDIR)/jfilter.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/jnettop.Po ./$(DEPDIR)/jprocessor.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/jresolv.Po ./$(DEPDIR)/jresolver.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/jutil.Po
+@AMDEP_TRUE@	./$(DEPDIR)/jconfig.Po ./$(DEPDIR)/jdevice.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/jfilter.Po ./$(DEPDIR)/jnettop.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/jprocessor.Po ./$(DEPDIR)/jresolv.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/jresolver.Po ./$(DEPDIR)/jutil.Po
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
@@ -212,6 +212,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jbase.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jcapture.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jconfig.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jdevice.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jfilter.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jnettop.Po@am__quote@
