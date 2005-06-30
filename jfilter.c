@@ -16,13 +16,13 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jfilter.c,v 1.3 2004-09-29 19:09:35 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jfilter.c,v 1.4 2005-06-30 13:58:52 merunka Exp $
  * 
  */
 
 #include "jnettop.h"
 
-void freeGenericFilterData(struct __ntop_stream *stream) {
+void freeGenericFilterData(struct __jbase_stream *stream) {
 	g_free(stream->filterData);
 }
 
@@ -32,9 +32,9 @@ struct ___httpFilterData {
 	gboolean	direction;
 };
 
-void filterHTTPFunc(struct __ntop_stream *stream, const struct __ntop_packet *packet, gboolean direction, const struct __ntop_payload_info *pi) {
+void filterHTTPFunc(struct __jbase_stream *stream, const struct __jbase_packet *packet, gboolean direction, const struct __jbase_payload_info *pi) {
 	struct ___httpFilterData *fd = (struct ___httpFilterData *)stream->filterData;
-	const guchar *data;
+	const gchar *data;
 	guint len;
 	if (direction == fd->direction)
 		return;
@@ -43,14 +43,14 @@ void filterHTTPFunc(struct __ntop_stream *stream, const struct __ntop_packet *pa
 	if (!data || len<0)
 		return;
 	if (!strncmp(data, "GET ", 4) || !strncmp(data, "POST ", 5) || !strncmp(data, "HEAD ", 5)) {
-		const guchar *space1, *space2;
+		const gchar *space1, *space2;
 		int i;
 		space1 = strchr(data, ' ') + 1;
 		len -= space1 - data;
 		space2 = space1;
 		for (i=0; i<len && *space2 != ' '; i++, space2++);
 		if (i<len) {
-			guchar url[BUFSIZ];
+			gchar url[BUFSIZ];
 			memcpy(url, data, space2-data);
 			url[space2-data] = '\0';
 			SET_FILTER_DATA_STRING(stream, url);
@@ -58,7 +58,7 @@ void filterHTTPFunc(struct __ntop_stream *stream, const struct __ntop_packet *pa
 	}
 }
 
-void assignHTTPFilter(ntop_stream *stream, gboolean direction) {
+void assignHTTPFilter(jbase_stream *stream, gboolean direction) {
 	struct ___httpFilterData *fd;
 	stream->filterDataFunc = filterHTTPFunc;
 	stream->filterData = (guchar*)(fd = g_new0(struct ___httpFilterData, 1));
@@ -72,12 +72,12 @@ void assignHTTPFilter(ntop_stream *stream, gboolean direction) {
 struct ___smtpFilterData {
 	guint		protocol;
 	gboolean	direction;
-	guchar		from[512], to[512];
+	gchar		from[512], to[512];
 };
 
-void filterSMTPFunc(struct __ntop_stream *stream, const struct __ntop_packet *packet, gboolean direction, const struct __ntop_payload_info *pi) {
+void filterSMTPFunc(struct __jbase_stream *stream, const struct __jbase_packet *packet, gboolean direction, const struct __jbase_payload_info *pi) {
 	struct ___smtpFilterData *fd = (struct ___smtpFilterData *)stream->filterData;
-	const guchar *data;
+	const gchar *data;
 	guint len;
 	if (direction == fd->direction)
 		return;
@@ -86,7 +86,7 @@ void filterSMTPFunc(struct __ntop_stream *stream, const struct __ntop_packet *pa
 	if (!data || len<0)
 		return;
 	if (!g_strncasecmp(data, "MAIL FROM: ", 11)) {
-		const guchar *space1, *space2;
+		const gchar *space1, *space2;
 		int i;
 		space1 = data + 11;
 		len -= space1 - data;
@@ -102,7 +102,7 @@ void filterSMTPFunc(struct __ntop_stream *stream, const struct __ntop_packet *pa
 			SET_FILTER_DATA_STRING(stream, fd->from);
 		}
 	} else if (!fd->to[0] && !g_strncasecmp(data, "RCPT TO: ", 9)) {
-		const guchar *space1, *space2;
+		const gchar *space1, *space2;
 		int i;
 		space1 = data + 9;
 		len -= space1 - data;
@@ -119,7 +119,7 @@ void filterSMTPFunc(struct __ntop_stream *stream, const struct __ntop_packet *pa
 	}
 }
 
-void assignSMTPFilter(ntop_stream *stream, gboolean direction) {
+void assignSMTPFilter(jbase_stream *stream, gboolean direction) {
 	struct ___smtpFilterData *fd;
 	stream->filterDataFunc = filterSMTPFunc;
 	stream->filterData = (guchar*) (fd = g_new0(struct ___smtpFilterData, 1));
@@ -129,13 +129,13 @@ void assignSMTPFilter(ntop_stream *stream, gboolean direction) {
 }
 
 #define IF_TCP_PORT_THEN_ASSIGN(port, assignFunc) \
-	if ((stream->proto == NTOP_PROTO_TCP || stream->proto == NTOP_PROTO_TCP6) \
+	if ((stream->proto == JBASE_PROTO_TCP || stream->proto == JBASE_PROTO_TCP6) \
 		&& (stream->srcport == port || stream->dstport == port)) { \
 		assignFunc(stream, stream->dstport == port); \
 		return; \
 	}
 
-void assignDataFilter(ntop_stream *stream) {
+void assignDataFilter(jbase_stream *stream) {
 	IF_TCP_PORT_THEN_ASSIGN(80, assignHTTPFilter);
 	IF_TCP_PORT_THEN_ASSIGN(8080, assignHTTPFilter);
 	IF_TCP_PORT_THEN_ASSIGN(3128, assignHTTPFilter);

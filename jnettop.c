@@ -16,49 +16,18 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.29 2004-10-01 22:37:07 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.30 2005-06-30 13:58:52 merunka Exp $
  *
  */
 
 #include "jnettop.h"
 
-
-/*
- * This stuff was copied out of Ethereal package by Gerald Combs <gerald@ethereal.com>
- * The point is, that we can use select() on platforms, where packet socket is
- * select()able. This prevents the capturer from taking all the processor time
- * doing g_tread_yeald() all the time.
- * Currently, this should happen only on BSD systems
- */
-#if !defined(BSD)
-# define USE_SELECT
-#endif
-
-gchar 	*NTOP_PROTOCOLS[] = { "UNK.", "IP", "TCP", "UDP", "ARP", "ETHER", 
-                              "SLL", "AGGR.", "ICMP", "IP6", "TCP6", "UDP6", "ICMP6" };
-gchar 	*NTOP_AGGREGATION[] = { "none", "port", "host" };
-
-char		pcap_errbuf[PCAP_ERRBUF_SIZE];
-
-int		devices_count;
-ntop_device	*devices, *activeDevice, *newDevice;
-
 FILE *		debugFile = NULL;
 
-int		threadCount;
+volatile int		threadCount;
 
-GQueue		*packetQueue;
-GMutex		*packetQueueMutex;
-GCond		*packetQueueCond;
-GHashTable	*streamTable;
-GMutex		*streamTableMutex;
-GPtrArray	*streamArray;
-GMutex		*streamArrayMutex;
-GHashTable	*resolverCache;
-GMutex		*resolverCacheMutex;
-GTrashStack	*freePacketStack = NULL;
-int		freePacketStackSize = 0;
-GMutex		*freePacketStackMutex;
+const jbase_device	*newDevice;
+
 GMutex		*statusMutex;
 char		*statusMessage;
 GTimeVal	statusTimeout;
@@ -68,37 +37,29 @@ char		*configFileName;
 GPtrArray	*bpfFilters;
 char		*configDeviceName;
 
-struct bpf_program	activeBPFFilter;
 char		*activeBPFFilterName;
 char		*newBPFFilter;
 char		*newBPFFilterName;
 
 char		*commandLineRule;
 
-GThread		*snifferThread;
 GThread		*sorterThread;
-GThread		*processorThread;
 GThread		*displayThread;
-GThreadPool	*resolverThreadPool;
-
-GTimeVal	startTime;
-GTimeVal	historyTime;
-
-guint32		totalSrcBytes, totalDstBytes, totalBytes;
-guint32		totalSrcPackets, totalDstPackets, totalPackets;
-guint32		totalSrcBPS, totalDstBPS, totalBPS;
-guint32		totalSrcPPS, totalDstPPS, totalPPS;
 
 GMutex		*displayStreamsMutex;
-ntop_stream	**displayStreams;
+jbase_stream	**displayStreams;
 int		displayStreamsCount;
 gchar 		line0FormatString[512], line1FormatString[512], line2FormatString[512];
 
-gboolean	onoffContentFiltering;
 gboolean	onoffBitValues;
 gboolean	onoffPackets;
 gboolean	onoffSuspended;
-gboolean	onoffPromisc;
+
+gboolean	setting_onoffContentFiltering;
+gboolean	setting_onoffPromisc;
+
+guint		setting_localAggregation;
+guint		setting_remoteAggregation;
 
 #define		DISPLAYMODE_NORMAL		0
 #define		DISPLAYMODE_BPFFILTERS		1
@@ -108,9 +69,6 @@ int		displayMode = DISPLAYMODE_NORMAL;
 
 WINDOW		*listWindow;
 
-guint		localAggregation;
-guint		remoteAggregation;
-
 const char * validateBPFFilter(char *filter) {
 	const char *ret = NULL;
 	struct bpf_program program;
@@ -119,27 +77,13 @@ const char * validateBPFFilter(char *filter) {
 	if (pcap_compile(pcap, &program, filter, 0, 0xFFFFFFFF) == -1) {
 		ret = pcap_geterr(pcap);
 	} else {
-		NTOP_PCAP_FREECODE(pcap, &program);
+		JBASE_PCAP_FREECODE(pcap, &program);
 	}
 	pcap_close(pcap);
 	return ret;
 }
 
-void	setToHostAggregation(int af, ntop_mutableaddress *addr) {
-	switch (af) {
-		case AF_INET:
-			addr->addr4.s_addr = htonl(0x01000000);
-			break;
-		case AF_INET6:
-			addr->addr6.ntop_s6_addr32[0] = 0x0;
-			addr->addr6.ntop_s6_addr32[1] = 0x0;
-			addr->addr6.ntop_s6_addr32[2] = 0x0;
-			addr->addr6.ntop_s6_addr32[3] = htonl(0x01000000);
-			break;
-	}
-}
-
-int	isHostAggregation(int af, const ntop_mutableaddress *addr) {
+int	isHostAggregation(int af, const jbase_mutableaddress *addr) {
 	switch (af) {
 		case AF_INET:
 			return addr->addr4.s_addr == htonl(0x01000000);
@@ -149,7 +93,7 @@ int	isHostAggregation(int af, const ntop_mutableaddress *addr) {
 	return 0;
 }
 
-const char * address2String(int af, const ntop_mutableaddress *src, char *dst, size_t cnt) {
+const char * address2String(int af, const jbase_mutableaddress *src, char *dst, size_t cnt) {
 	if (isHostAggregation(af, src)) {
 		*dst = '\0';
 		return dst;
@@ -189,111 +133,15 @@ void debug(const char *format, ...) {
 }
 
 void freeStream(gpointer ptr) {
-	ntop_stream *s = (ntop_stream *)ptr;
+	jbase_stream *s = (jbase_stream *)ptr;
 	if (s->filterDataFreeFunc)
 		s->filterDataFreeFunc(s);
 	g_free(s);
 }
 
-void createDevice(char *deviceName) {
-	devices_count = 1;
-	devices = g_new(ntop_device, 1);
-	devices[0].name = g_strndup((gchar*)deviceName, strlen(deviceName));
-}
-
-void lookupDevices() {
-#if HAVE_PCAP_FINDALLDEVS
-	pcap_if_t	*head, *t;
-	int		i;
-	if (pcap_findalldevs(&head, pcap_errbuf) != 0) {
-		fprintf(stderr, "pcap_findalldevs: %s\n", pcap_errbuf);
-		exit(255);
-	}
-	devices_count = 0;
-	t = head;
-	while (t) {
-		devices_count ++;
-		t = t->next;
-	}
-	devices = g_new0(ntop_device, devices_count);
-	t = head;
-	i = 0;
-	while (t) {
-		devices[i++].name = g_strndup((gchar*)t->name, strlen(t->name));
-		t = t->next;
-	}
-	pcap_freealldevs(head);
-#else
-	char		*name;
-	devices_count = 1;
-	devices = g_new(ntop_device, 1);
-	name = pcap_lookupdev(pcap_errbuf);
-	if (!name) {
-		fprintf(stderr, "pcap_lookupdev: %s\n", pcap_errbuf);
-		exit(255);
-	}
-	devices[0].name = g_strndup((gchar*)name, strlen(name));
-#endif
-}
-
-void checkDevices() {
-	struct ifreq ifr;
-	int s,i;
-
-	memset(&ifr, 0, sizeof(struct ifreq));
-	s = socket(PF_INET, SOCK_DGRAM, 0);
-	if (s==-1) {
-		fprintf(stderr, "Could not open datagram socket used to discover HW addresses of interfaces: %s\n", strerror(errno));
-		exit(1);
-	}
-	for (i=0; i<devices_count; i++) {
-		strncpy(ifr.ifr_name, devices[i].name, IFNAMSIZ);
-#ifdef SIOCGIFHWADDR
-		ifr.ifr_hwaddr.sa_family = AF_UNSPEC;
-		if (ioctl(s, SIOCGIFHWADDR, &ifr) >= 0) {
-			memcpy(&devices[i].hwaddr, &ifr.ifr_hwaddr, sizeof(struct sockaddr));
-#else
-		if (ioctl(s, SIOCGIFADDR, &ifr) >= 0) {
-			memcpy(&devices[i].hwaddr, &ifr.ifr_addr, sizeof(struct sockaddr));
-#endif
-		} else {
-			fprintf(stderr, "Could not get HW address of interface %s: %s\n", devices[i].name, strerror(errno));
-		}
-	}
-	close(s);
-}
-	
-guint hashStream(gconstpointer key) {
-	const ntop_stream	*stream = (const ntop_stream *)key;
-	guint hash = 0;
-	hash = stream->src.addr6.ntop_s6_addr32[0];
-	hash ^= stream->src.addr6.ntop_s6_addr32[1];
-	hash ^= stream->src.addr6.ntop_s6_addr32[2];
-	hash ^= stream->src.addr6.ntop_s6_addr32[3];
-	hash ^= stream->dst.addr6.ntop_s6_addr32[0];
-	hash ^= stream->dst.addr6.ntop_s6_addr32[1];
-	hash ^= stream->dst.addr6.ntop_s6_addr32[2];
-	hash ^= stream->dst.addr6.ntop_s6_addr32[3];
-	hash ^= (((guint)stream->srcport) << 16) + (guint)stream->dstport;
-	return hash;
-}
-
-gboolean compareStream(gconstpointer a, gconstpointer b) {
-	const ntop_stream *astr = (const ntop_stream *)a;
-	const ntop_stream *bstr = (const ntop_stream *)b;
-	if (astr->proto == bstr->proto &&
-			astr->srcport == bstr->srcport &&
-			astr->dstport == bstr->dstport &&
-			IN6_ARE_ADDR_EQUAL(&astr->src.addr6, &bstr->src.addr6) &&
-			IN6_ARE_ADDR_EQUAL(&astr->dst.addr6, &bstr->dst.addr6)
-			)
-		return TRUE;
-	return FALSE;
-}
-
 gint compareStreamByStat(gconstpointer a, gconstpointer b) {
-	const ntop_stream	*astr = *(const ntop_stream **)a;
-	const ntop_stream	*bstr = *(const ntop_stream **)b;
+	const jbase_stream	*astr = *(const jbase_stream **)a;
+	const jbase_stream	*bstr = *(const jbase_stream **)b;
 	if (onoffPackets) {
 		if (astr->totalpps > bstr->totalpps)
 			return -1;
@@ -306,185 +154,6 @@ gint compareStreamByStat(gconstpointer a, gconstpointer b) {
 			return 0;
 	}
 	return 1;
-}
-
-guint hashResolvEntry(gconstpointer key) {
-	const ntop_resolv_entry *resolv = key;
-	guint hash = 0;
-	hash = resolv->addr.addr6.ntop_s6_addr32[0];
-	hash ^= resolv->addr.addr6.ntop_s6_addr32[1];
-	hash ^= resolv->addr.addr6.ntop_s6_addr32[2];
-	hash ^= resolv->addr.addr6.ntop_s6_addr32[3];
-	return hash;
-}
-
-gboolean compareResolvEntry(gconstpointer a, gconstpointer b) {
-	ntop_resolv_entry	*aa, *bb;
-	if(a == b) return 1;
-	aa = (ntop_resolv_entry *) a;
-	bb = (ntop_resolv_entry *) b;
-	if(aa->af != bb->af)
-		return 0;
-	return !memcmp(&aa->addr, &bb->addr, sizeof(aa->addr));
-}
-
-void	aggregateStream(ntop_stream *stream) {
-	switch (localAggregation) {
-		case AGG_HOST:
-			setToHostAggregation(NTOP_AF(stream->proto), &stream->src);
-		case AGG_PORT:
-			stream->srcport = -1;
-	}
-	switch (remoteAggregation) {
-		case AGG_HOST:
-			setToHostAggregation(NTOP_AF(stream->proto), &stream->dst);
-		case AGG_PORT:
-			stream->dstport = -1;
-	}
-}
-
-void	sortPacket(const ntop_packet *packet) {
-	ntop_stream	packetStream;
-	ntop_stream	*stat;
-	ntop_resolv_entry	key;
-	ntop_payload_info	payloadInfo[NTOP_PROTO_MAX];
-	totalBytes += packet->header.len;
-	totalPackets ++;
-	memset(&packetStream, 0, sizeof(ntop_stream));
-	resolveStream(packet, &packetStream, payloadInfo);
-	aggregateStream(&packetStream);
-	g_mutex_lock(streamTableMutex);
-	stat = (ntop_stream *)g_hash_table_lookup(streamTable, &packetStream);
-	if (stat == NULL) {
-		ntop_resolv_entry *rentry;
-		stat = g_new0(ntop_stream, 1);
-		memcpy(stat, &packetStream, sizeof(ntop_stream));
-		g_get_current_time(&stat->firstSeen);
-		g_hash_table_insert(streamTable, stat, stat);
-		g_mutex_unlock(streamTableMutex);
-
-		if (onoffContentFiltering)
-			assignDataFilter(stat);
-		
-		memcpy(&key.addr, &packetStream.src, sizeof(key.addr));
-		key.name = NULL;
-		key.af = NTOP_AF(packetStream.proto);
-		g_mutex_lock(resolverCacheMutex);
-		rentry = g_hash_table_lookup(resolverCache, &key);
-		if (rentry == NULL) {
-			rentry = g_new0(ntop_resolv_entry, 1);
-			memcpy(rentry, &key, sizeof(key));
-			g_hash_table_insert(resolverCache, rentry, rentry);
-			g_mutex_unlock(resolverCacheMutex);
-			g_thread_pool_push(resolverThreadPool, rentry, NULL);
-			g_mutex_lock(resolverCacheMutex);
-		}
-		stat->srcresolv = rentry;
-		memcpy(&key.addr, &packetStream.dst, sizeof(key.addr));
-		rentry = g_hash_table_lookup(resolverCache, &key);
-		if (rentry == NULL) {
-			rentry = g_new0(ntop_resolv_entry, 1);
-			memcpy(rentry, &key, sizeof(key));
-			g_hash_table_insert(resolverCache, rentry, rentry);
-			g_mutex_unlock(resolverCacheMutex);
-			g_thread_pool_push(resolverThreadPool, rentry, NULL);
-		} else {
-			g_mutex_unlock(resolverCacheMutex);
-		}
-		stat->dstresolv = rentry;
-
-		g_mutex_lock(streamArrayMutex);
-		g_ptr_array_add(streamArray, stat);
-		g_mutex_unlock(streamArrayMutex);
-	} else {
-		g_mutex_unlock(streamTableMutex);
-	}
-	if (packetStream.direction) {
-		stat->dstbytes += packet->header.len;
-		stat->dstpackets ++;
-		*stat->hdstbytes += packet->header.len;
-		stat->hdstpackets[0]++;
-		stat->hdstbytessum += packet->header.len;
-		stat->hdstpacketssum++;
-		totalDstBytes += packet->header.len;
-		totalDstPackets++;
-	} else {
-		stat->srcbytes += packet->header.len;
-		stat->srcpackets ++;
-		*stat->hsrcbytes += packet->header.len;
-		stat->hsrcpackets[0]++;
-		stat->hsrcbytessum += packet->header.len;
-		stat->hsrcpacketssum++;
-		totalSrcBytes += packet->header.len;
-		totalSrcPackets++;
-	}
-	stat->totalbytes += packet->header.len;
-	stat->totalpackets ++;
-	g_get_current_time(&stat->lastSeen);
-
-	if (onoffContentFiltering && stat->filterDataFunc) {
-		stat->filterDataFunc(stat, packet, packetStream.direction, payloadInfo);
-	}
-}
-
-void	markAllAsDead() {
-	int i;
-	g_mutex_lock(streamArrayMutex);
-	for (i=0; i<streamArray->len; i++) {
-		ntop_stream *s = (ntop_stream *)g_ptr_array_index(streamArray, i);
-		s->dead=6;
-	}
-	g_mutex_unlock(streamArrayMutex);
-}
-
-void	updateBPS() {
-	GTimeVal	currentDateTime;
-	uint		i;
-	guint32		srcbps = 0;
-	guint32		dstbps = 0;
-	guint32		srcpps = 0;
-	guint32		dstpps = 0;
-
-	g_get_current_time(&currentDateTime);
-	currentDateTime.tv_sec ++;
-
-	for (i=0; i<streamArray->len; i++) {
-		ntop_stream *s = (ntop_stream *)g_ptr_array_index(streamArray, i);
-		int byteswindow = ( currentDateTime.tv_sec - s->firstSeen.tv_sec );
-		if (byteswindow > HISTORY_LENGTH)
-			byteswindow = HISTORY_LENGTH;
-			
-		srcbps += (s->srcbps = s->hsrcbytessum / byteswindow);
-		s->hsrcbytessum -= s->hsrcbytes[HISTORY_LENGTH-1];
-		memmove(s->hsrcbytes+1, s->hsrcbytes, sizeof(guint)*(HISTORY_LENGTH-1));
-		s->hsrcbytes[0] = 0;
-		dstbps += (s->dstbps = s->hdstbytessum / byteswindow);
-		s->hdstbytessum -= s->hdstbytes[HISTORY_LENGTH-1];
-		memmove(s->hdstbytes+1, s->hdstbytes, sizeof(guint)*(HISTORY_LENGTH-1));
-		s->hdstbytes[0] = 0;
-		s->totalbps = s->srcbps + s->dstbps;
-		
-		srcpps += (s->srcpps = s->hsrcpacketssum / byteswindow);
-		s->hsrcpacketssum -= s->hsrcpackets[HISTORY_LENGTH-1];
-		memmove(s->hsrcpackets+1, s->hsrcpackets, sizeof(guint)*(HISTORY_LENGTH-1));
-		s->hsrcpackets[0] = 0;
-		dstpps += (s->dstpps = s->hdstpacketssum / byteswindow);
-		s->hdstpacketssum -= s->hdstpackets[HISTORY_LENGTH-1];
-		memmove(s->hdstpackets+1, s->hdstpackets, sizeof(guint)*(HISTORY_LENGTH-1));
-		s->hdstpackets[0] = 0;
-		s->totalpps = s->srcpps + s->dstpps;
-		
-		if (!s->dead && currentDateTime.tv_sec - s->lastSeen.tv_sec > 10) {
-			s->dead ++;
-		}
-	}
-
-	totalSrcBPS = srcbps;
-	totalDstBPS = dstbps;
-	totalBPS = srcbps + dstbps;
-	totalSrcPPS = srcpps;
-	totalDstPPS = dstpps;
-	totalPPS = srcpps + dstpps;
 }
 
 int	activeLines=1, activeColumns=1;
@@ -511,7 +180,7 @@ void formatNumber(guint32 n, gchar *buf, int len) {
 	sprintf(buf, fmt, f);
 }
 
-void drawStatus(guchar *msg) {
+void drawStatus(const gchar *msg) {
 	g_mutex_lock(statusMutex);
 	statusMessage = g_strdup(msg);
 	g_get_current_time(&statusTimeout);
@@ -522,6 +191,10 @@ void drawStatus(guchar *msg) {
 	clrtoeol();
 	attroff(A_BOLD);
 	refresh();
+}
+
+void jbase_cb_DrawStatus(const gchar *msg) {
+	drawStatus(msg);
 }
 
 void drawScreen() {
@@ -539,11 +212,9 @@ void drawScreen() {
 
 		mvprintw(0, 0, "run XXX:XX:XX device XXXXXXXXXX pkt[f]ilter: XXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
 		mvprintw(1, 0, "[c]ntfilter: XXX [b]ps=XXXXXXX [l]ocal aggr.: XXXX [r]emote aggr.: XXXX   ");
-#if HAVE_PCAP_FINDALLDEVS
-		if (devices_count>1) {
+		if (jdevice_DevicesCount>1) {
 			mvprintw(2, 10, "[0]-[9] switch device");
 		}
-#endif
 		mvprintw(0, activeColumns-1, ".");
 
 		{
@@ -587,29 +258,29 @@ void drawHeader() {
 	
 	g_get_current_time(&currentTime);
 	localtime_r(&currentTime.tv_sec, &tm);
-	sprintf(timeBuffer, "%3d:%02d:%02d", (int)((currentTime.tv_sec-startTime.tv_sec)/3600), (int)((currentTime.tv_sec-startTime.tv_sec)%3600/60), (int)((currentTime.tv_sec-startTime.tv_sec)%60));
+	sprintf(timeBuffer, "%3d:%02d:%02d", (int)((currentTime.tv_sec-jprocessor_Stats.startTime.tv_sec)/3600), (int)((currentTime.tv_sec-jprocessor_Stats.startTime.tv_sec)%3600/60), (int)((currentTime.tv_sec-jprocessor_Stats.startTime.tv_sec)%60));
 	mvprintw(0, 4, "%s", timeBuffer);
-	if (activeDevice)
-		mvprintw(0, 21, "%-10s", activeDevice->name);
+	if (jcapture_ActiveDevice)
+		mvprintw(0, 21, "%-10s", jcapture_ActiveDevice->name);
 	mvprintw(0, 45, "%-29.29s", activeBPFFilterName?activeBPFFilterName:"none");
-	mvprintw(1, 13, "%s", onoffContentFiltering?"on ":"off");
+	mvprintw(1, 13, "%s", jprocessor_ContentFiltering?"on ":"off");
 	mvprintw(1, 23, "%s", onoffPackets ? "pckts/s" : (onoffBitValues?"bits/s ":"bytes/s"));
-	mvprintw(1, 46, "%s", NTOP_AGGREGATION[localAggregation]);
-	mvprintw(1, 67, "%s", NTOP_AGGREGATION[remoteAggregation]);
+	mvprintw(1, 46, "%s", JBASE_AGGREGATION[jprocessor_LocalAggregation]);
+	mvprintw(1, 67, "%s", JBASE_AGGREGATION[jprocessor_RemoteAggregation]);
 
 	attroff(A_BOLD);
 
-	formatNumber(onoffPackets?totalPPS:(onoffBitValues?8:1)*totalBPS, bps, 6);
+	formatNumber(onoffPackets?jprocessor_Stats.totalPPS:(onoffBitValues?8:1)*jprocessor_Stats.totalBPS, bps, 6);
 	g_strlcat(bps, "/s", sizeof(bps));
-	formatNumber(onoffPackets?totalSrcPPS:(onoffBitValues?8:1)*totalSrcBPS, srcbps, 6);
+	formatNumber(onoffPackets?jprocessor_Stats.totalSrcPPS:(onoffBitValues?8:1)*jprocessor_Stats.totalSrcBPS, srcbps, 6);
 	g_strlcat(srcbps, "/s", sizeof(srcbps));
-	formatNumber(onoffPackets?totalDstPPS:(onoffBitValues?8:1)*totalDstBPS, dstbps, 6);
+	formatNumber(onoffPackets?jprocessor_Stats.totalDstPPS:(onoffBitValues?8:1)*jprocessor_Stats.totalDstBPS, dstbps, 6);
 	g_strlcat(dstbps, "/s", sizeof(dstbps));
 	mvprintw(activeLines-2, 0, line0FormatString, "TOTAL", srcbps, dstbps, bps);
 
-	formatNumber(onoffPackets?totalPackets:(onoffBitValues?8:1)*totalBytes, total, 6);
-	formatNumber(onoffPackets?totalSrcPackets:(onoffBitValues?8:1)*totalSrcBytes, totalsrc, 6);
-	formatNumber(onoffPackets?totalDstPackets:(onoffBitValues?8:1)*totalDstBytes, totaldst, 6);
+	formatNumber(onoffPackets?jprocessor_Stats.totalPackets:(onoffBitValues?8:1)*jprocessor_Stats.totalBytes, total, 6);
+	formatNumber(onoffPackets?jprocessor_Stats.totalSrcPackets:(onoffBitValues?8:1)*jprocessor_Stats.totalSrcBytes, totalsrc, 6);
+	formatNumber(onoffPackets?jprocessor_Stats.totalDstPackets:(onoffBitValues?8:1)*jprocessor_Stats.totalDstBytes, totaldst, 6);
 	mvprintw(activeLines-1, 0, line1FormatString, "", "", "", "", "", totalsrc, totaldst, total);
 
 	mvchgat(activeLines-2, 0, activeColumns-25, A_BOLD, 0, NULL);
@@ -626,59 +297,27 @@ void drawHeader() {
 	attroff(A_REVERSE);
 }
 
-void resolverThreadFunc(gpointer task, gpointer user_data) {
-	ntop_resolv_entry *entry = (ntop_resolv_entry *)task;
-	gchar buffer[4096];
-	struct hostent shentry, *hentry;
-	int  e, ret, size;
-	gchar *name;
-
-#if !HAVE_GETHOSTBYADDR_R_8 && !HAVE_GETHOSTBYADDR_7
-	g_mutex_lock(gethostbyaddrMutex);
-#endif
-	ret = 0; e=0;
-	size = entry->af == AF_INET ? sizeof(struct in_addr) : sizeof(struct in6_addr);
-#if HAVE_GETHOSTBYADDR_R_8
-	ret = gethostbyaddr_r(&entry->addr, size, entry->af, &shentry, buffer, 4096, &hentry, &e);
-#elif HAVE_GETHOSTBYADDR_R_7
-	hentry = gethostbyaddr_r(&entry->addr, size, entry->af, &shentry, buffer, 4096, &e);
-#else
-	hentry = gethostbyaddr(&entry->addr, size, entry->af);
-#endif
-	if (!hentry || ret || e) {
-		goto resolverfailed;
-	}
-	name = g_strdup(hentry->h_name);
-	entry->name = name;
-resolverfailed:
-#if !HAVE_GETHOSTBYADDR_R_8 && !HAVE_GETHOSTBYADDR_7
-	g_mutex_unlock(gethostbyaddrMutex);
-#else
-	name = name; // dummy to avoid deprecated warning on linux
-#endif
-}
-
 gpointer sorterThreadFunc(gpointer data) {
 	threadCount ++;
 
-	while (activeDevice != NULL) {
+	while (jcapture_IsRunning) {
 		guint		i, j;
 		int		lines,oldLines;
-		ntop_stream	**streams,**oldStreams;
+		jbase_stream	**streams,**oldStreams;
 		GTimeVal	t;
 
 		lines = (activeLines - 8) / 3;
 
-		streams = g_new0(ntop_stream *, lines);
+		streams = g_new0(jbase_stream *, lines);
 		
-		g_mutex_lock(streamArrayMutex);
-		if (streamArray->len > 0) {
-			updateBPS();
+		g_mutex_lock(jprocessor_StreamArrayMutex);
+		if (jprocessor_StreamArray->len > 0) {
+			jprocessor_UpdateBPS();
 			if (!onoffSuspended)
-				g_ptr_array_sort(streamArray, (GCompareFunc)compareStreamByStat);
+				g_ptr_array_sort(jprocessor_StreamArray, (GCompareFunc)compareStreamByStat);
 		}
-		for (i=0,j=0; i<streamArray->len && j<lines; i++) {
-			ntop_stream *s = (ntop_stream *)g_ptr_array_index(streamArray, i);
+		for (i=0,j=0; i<jprocessor_StreamArray->len && j<lines; i++) {
+			jbase_stream *s = (jbase_stream *)g_ptr_array_index(jprocessor_StreamArray, i);
 			if (s->dead > 5) {
 				continue;
 			}
@@ -686,7 +325,7 @@ gpointer sorterThreadFunc(gpointer data) {
 			streams[j++] = s;
 		}
 		lines = j;
-		g_mutex_unlock(streamArrayMutex);
+		g_mutex_unlock(jprocessor_StreamArrayMutex);
 
 		g_mutex_lock(displayStreamsMutex);
 		oldStreams = displayStreams;
@@ -701,21 +340,21 @@ gpointer sorterThreadFunc(gpointer data) {
 		if (oldStreams)
 			g_free(oldStreams);
 
-		g_mutex_lock(streamArrayMutex);
-		g_mutex_lock(streamTableMutex);
+		g_mutex_lock(jprocessor_StreamArrayMutex);
+		g_mutex_lock(jprocessor_StreamTableMutex);
 
-		for (i=0; i<streamArray->len; i++) {
-			ntop_stream *s = (ntop_stream *)g_ptr_array_index(streamArray, i);
+		for (i=0; i<jprocessor_StreamArray->len; i++) {
+			jbase_stream *s = (jbase_stream *)g_ptr_array_index(jprocessor_StreamArray, i);
 			if (s->dead && ++s->dead > 7 && !s->displayed) {
-				g_ptr_array_remove_index_fast ( streamArray, i );
-				g_hash_table_remove ( streamTable, s );
+				g_ptr_array_remove_index_fast ( jprocessor_StreamArray, i );
+				g_hash_table_remove ( jprocessor_StreamTable, s );
 				freeStream(s);
 				i--;
 			}
 		}
 
-		g_mutex_unlock(streamTableMutex);
-		g_mutex_unlock(streamArrayMutex);
+		g_mutex_unlock(jprocessor_StreamTableMutex);
+		g_mutex_unlock(jprocessor_StreamArrayMutex);
 
 		g_get_current_time(&t);
 		g_usleep(1000000 - t.tv_usec);
@@ -732,16 +371,12 @@ gboolean	removeStreamTableEntry(gpointer key, gpointer value, gpointer user_data
 }
 
 void     clearStatistics() {
-	gpointer	ptr;
 	int            	i;
 
-	while ((ptr = g_queue_pop_tail(packetQueue))) {
-		g_free(ptr);
+	for (i=jprocessor_StreamArray->len-1; i>=0; i--) {
+		g_ptr_array_remove_index_fast(jprocessor_StreamArray, i);
 	}
-	for (i=streamArray->len-1; i>=0; i--) {
-		g_ptr_array_remove_index_fast(streamArray, i);
-	}
-	g_hash_table_foreach_remove(streamTable, (GHRFunc)removeStreamTableEntry, NULL);
+	g_hash_table_foreach_remove(jprocessor_StreamTable, (GHRFunc)removeStreamTableEntry, NULL);
 }
 
 void	doDisplayStreams() {
@@ -752,8 +387,8 @@ void	doDisplayStreams() {
 		gchar total[10], totalsrc[10], totaldst[10];
 		uint tmp;
 		gchar linebuffer[1024];
-		gchar *psrcaddr, *pdstaddr;
-		ntop_stream *s = displayStreams[i];
+		const gchar *psrcaddr, *pdstaddr;
+		jbase_stream *s = displayStreams[i];
 		tmp = onoffPackets ? s->totalpps : (onoffBitValues?8:1)*s->totalbps;
 		formatNumber(tmp, bps, 6);
 		g_strlcat(bps, "/s", sizeof(bps));
@@ -766,13 +401,13 @@ void	doDisplayStreams() {
 		formatNumber(onoffPackets ? s->totalpackets : s->totalbytes, total, 6);
 		formatNumber(onoffPackets ? s->srcpackets : s->srcbytes, totalsrc, 6);
 		formatNumber(onoffPackets ? s->dstpackets : s->dstbytes, totaldst, 6);
-		address2String(NTOP_AF(s->proto), &s->src, srcaddr, INET6_ADDRSTRLEN);
+		address2String(JBASE_AF(s->proto), &s->src, srcaddr, INET6_ADDRSTRLEN);
 		if (s->srcresolv == NULL || s->srcresolv->name == NULL) {
 			psrcaddr = srcaddr;
 		} else {
 			psrcaddr = s->srcresolv->name;
 		}
-		address2String(NTOP_AF(s->proto), &s->dst, dstaddr, INET6_ADDRSTRLEN);
+		address2String(JBASE_AF(s->proto), &s->dst, dstaddr, INET6_ADDRSTRLEN);
 		if (s->dstresolv == NULL || s->dstresolv->name == NULL) {
 			pdstaddr = dstaddr;
 		} else {
@@ -789,7 +424,7 @@ void	doDisplayStreams() {
 		sprintf(linebuffer, "%s <-> %s", psrcaddr, pdstaddr);
 		mvwprintw(listWindow, i*3, 0, line0FormatString, linebuffer, srcbps, dstbps, bps);
 		mvwchgat(listWindow, i*3, 0, activeColumns-25, A_BOLD, 0, NULL);
-		mvwprintw(listWindow, i*3+1, 0, line1FormatString, srcaddr, srcport, NTOP_PROTOCOLS[s->proto], dstaddr, dstport, totalsrc, totaldst, total);
+		mvwprintw(listWindow, i*3+1, 0, line1FormatString, srcaddr, srcport, JBASE_PROTOCOLS[s->proto], dstaddr, dstport, totalsrc, totaldst, total);
 		mvwprintw(listWindow, i*3+2, 0, line2FormatString, s->filterDataString);
 	}
 }
@@ -805,7 +440,7 @@ gpointer displayThreadFunc(gpointer data) {
 	threadCount ++;
 	g_usleep(500000);
 
-	while (activeDevice != NULL) {
+	while (jcapture_IsRunning) {
 		int i;
 		
 		doDisplayWholeScreen();
@@ -851,10 +486,10 @@ gpointer displayThreadFunc(gpointer data) {
 					case 'q':
 					case 'Q':
 						drawStatus("Please wait, shutting down...");
-						activeDevice = NULL;
+						jcapture_Kill();
 						break;
 					case 'c':
-						onoffContentFiltering = !onoffContentFiltering;
+						jprocessor_SetContentFiltering( !jprocessor_ContentFiltering );
 						break;
 					case 'b':
 						onoffBitValues = !onoffBitValues;
@@ -876,12 +511,10 @@ gpointer displayThreadFunc(gpointer data) {
 						displayMode = DISPLAYMODE_HELP;
 						break;
 					case 'l':
-						markAllAsDead();
-						localAggregation = (localAggregation + 1) % 3;
+						jprocessor_SetLocalAggregation((jprocessor_LocalAggregation + 1) % 3);
 						break;
 					case 'r':
-						markAllAsDead();
-						remoteAggregation = (remoteAggregation + 1) % 3;
+						jprocessor_SetRemoteAggregation((jprocessor_RemoteAggregation + 1) % 3);
 						break;
 					case '0':
 					case '1':
@@ -894,10 +527,10 @@ gpointer displayThreadFunc(gpointer data) {
 					case '8':
 					case '9':
 						i -= '0';
-						if (devices_count>1 && devices_count > i) {
+						if (jdevice_DevicesCount>1 && jdevice_DevicesCount>i) {
 							drawStatus("Please wait, cleaning up...");
-							newDevice = devices + i;
-							activeDevice = NULL;
+							newDevice = jdevice_Devices + i;
+							jcapture_Kill();
 						}
 						break;
 				}
@@ -919,8 +552,8 @@ gpointer displayThreadFunc(gpointer data) {
 						newBPFFilterName = (char *) g_ptr_array_index(bpfFilters, (i - 'a')*2 );
 						break;
 					}
-					newDevice = activeDevice;
-					activeDevice = NULL;
+					newDevice = jcapture_ActiveDevice;
+					jcapture_Kill();
 					displayMode = DISPLAYMODE_NORMAL;
 					break;
 				}
@@ -936,189 +569,7 @@ gpointer displayThreadFunc(gpointer data) {
 	return NULL;
 }
 
-ntop_packet *allocNtopPacket() {
-	ntop_packet *ptr;
-	g_mutex_lock(freePacketStackMutex);
-	ptr = (ntop_packet *)g_trash_stack_pop(&freePacketStack);
-	if (ptr) {
-		freePacketStackSize --;
-	}
-	g_mutex_unlock(freePacketStackMutex);
-	if (!ptr) {
-		ptr = g_new(ntop_packet, 1);
-	}
-	return ptr;
-}
-
-void freeNtopPacket(ntop_packet *packet) {
-	g_mutex_lock(freePacketStackMutex);
-	if (freePacketStackSize < FREEPACKETSTACK_PEEK) {
-		g_trash_stack_push(&freePacketStack, packet);
-		freePacketStackSize ++;
-		packet = NULL;
-	}
-	g_mutex_unlock(freePacketStackMutex);
-	if (packet)
-		g_free(packet);
-	
-}
-
-gpointer processorThreadFunc(gpointer data) {
-	threadCount ++;
-	g_mutex_lock(packetQueueMutex);
-	while (activeDevice != NULL) {
-		ntop_packet	*packet;
-		packet = (ntop_packet *)g_queue_pop_tail(packetQueue);
-		if (packet == NULL) {
-			g_cond_wait(packetQueueCond, packetQueueMutex);
-			continue;
-		}
-
-		g_mutex_unlock(packetQueueMutex);
-
-		sortPacket(packet);
-		freeNtopPacket(packet);
-
-		g_mutex_lock(packetQueueMutex);
-	}
-	g_mutex_unlock(packetQueueMutex);
-	threadCount --;
-
-	return NULL;
-}
-
-gboolean	packetReceived;
-int		deviceDataLink;
-
-void     dispatch_callback(const u_char *udata, const struct pcap_pkthdr *hdr, const guchar *pcappacket) {
-	ntop_packet * packet;
-	packet = allocNtopPacket();
-	packet->device = activeDevice;
-	packet->dataLink = deviceDataLink;
-	memcpy(&(packet->header), hdr, sizeof(struct pcap_pkthdr));
-	if (packet->header.caplen > BUFSIZ)
-		packet->header.caplen = BUFSIZ;
-	memcpy(packet->data, pcappacket, packet->header.caplen);
-	g_mutex_lock(packetQueueMutex);
-	g_queue_push_head(packetQueue, packet);
-	g_mutex_unlock(packetQueueMutex);
-	g_cond_signal(packetQueueCond);
-}
-
-gpointer snifferThreadFunc(gpointer data) {
-	pcap_t		*handle = NULL;
-	ntop_device	*device = NULL;
-	gchar		pcap_errbuf[PCAP_ERRBUF_SIZE];
-	gboolean	isFilterUsed = FALSE;
-
-	threadCount ++;
-
-	while (1) {
-		if (device != activeDevice) {
-			if (isFilterUsed) {
-				NTOP_PCAP_FREECODE(handle, &activeBPFFilter);
-			}
-			if (device) {
-				pcap_close(handle);
-			}
-			device = activeDevice;
-			if (!device) {
-				g_cond_signal(packetQueueCond);
-				threadCount --;
-
-				return NULL;
-			}
-			handle = pcap_open_live((char*)device->name, BUFSIZ, onoffPromisc, 10, pcap_errbuf);
-			if (handle == NULL) {
-				char BUF[PCAP_ERRBUF_SIZE + 128];
-				snprintf(BUF, PCAP_ERRBUF_SIZE + 128, "Not sniffing. Error while initializing %s: %s", device->name, pcap_errbuf);
-				drawStatus(BUF);
-				break;
-			}
-#if HAVE_PCAP_SETNONBLOCK
-			pcap_setnonblock(handle, 1, NULL);
-#endif
-			activeBPFFilterName = NULL;
-			if (newBPFFilter) {
-				isFilterUsed = FALSE;
-				debug("Filter: %s\n", newBPFFilter);
-				if (pcap_compile(handle, &activeBPFFilter, newBPFFilter, 0, 0xFFFFFFFF) == -1) {
-					char BUF[PCAP_ERRBUF_SIZE + 128];
-					snprintf(BUF, PCAP_ERRBUF_SIZE + 128, "Filter not applied. Error while compiling: %s", pcap_geterr(handle));
-					drawStatus(BUF);
-				} else {
-					if (pcap_setfilter(handle, &activeBPFFilter) == -1) {
-						char BUF[PCAP_ERRBUF_SIZE + 128];
-						snprintf(BUF, PCAP_ERRBUF_SIZE + 128, "Filter not applied. setfilter(): %s", pcap_geterr(handle));
-						drawStatus(BUF);
-					} else {
-						activeBPFFilterName = newBPFFilterName;
-					}
-					isFilterUsed = TRUE;
-				}
-			}
-			deviceDataLink = pcap_datalink(handle);
-		}
-
-#ifdef USE_SELECT
-		{
-			int pcap_fd = pcap_fileno(handle);
-			int sel_ret;
-			struct timeval timeout;
-			fd_set set1;
-
-			FD_ZERO(&set1);
-			FD_SET(pcap_fd, &set1);
-			timeout.tv_sec = 0;
-			timeout.tv_usec = 500000;
-			sel_ret = select(pcap_fd+1, &set1, NULL, NULL, &timeout);
-			if (sel_ret > 0) {
-				pcap_dispatch(handle, 10, (pcap_handler)dispatch_callback, NULL);
-			}
-		}
-		
-#else
-		{
-			packetReceived = FALSE;
-			pcap_dispatch(handle, 10, (pcap_handler)dispatch_callback, NULL);
-			if (!packetReceived)
-				g_thread_yield();
-		}
-#endif
-	}
-
-	threadCount --;
-	return NULL;
-}
-
 void    initDefaults() {
-	ntop_resolv_entry *entry;
-	entry = g_new0(ntop_resolv_entry, 1);
-	entry->name = "UNKNOWNv4";
-	entry->af = AF_INET;
-	entry->addr.addr4.s_addr = 0x0;
-	g_hash_table_insert(resolverCache, entry, entry);
-	entry = g_new0(ntop_resolv_entry, 1);
-	entry->name = "UNKNOWNv6";
-	entry->af = AF_INET6;
-	entry->addr.addr6.ntop_s6_addr32[0] = 0x0;
-	entry->addr.addr6.ntop_s6_addr32[1] = 0x0;
-	entry->addr.addr6.ntop_s6_addr32[2] = 0x0;
-	entry->addr.addr6.ntop_s6_addr32[3] = 0x0;
-	g_hash_table_insert(resolverCache, entry, entry);
-	entry = g_new0(ntop_resolv_entry, 1);
-	entry->name = "AGGREGATEDv4";
-	entry->af = AF_INET;
-	entry->addr.addr4.s_addr = htonl(0x01000000);
-	g_hash_table_insert(resolverCache, entry, entry);
-	entry = g_new0(ntop_resolv_entry, 1);
-	entry->name = "AGGREGATEDv6";
-	entry->af = AF_INET6;
-	entry->addr.addr6.ntop_s6_addr32[0] = 0x0;
-	entry->addr.addr6.ntop_s6_addr32[1] = 0x0;
-	entry->addr.addr6.ntop_s6_addr32[2] = 0x0;
-	entry->addr.addr6.ntop_s6_addr32[3] = htonl(0x01000000);
-	g_hash_table_insert(resolverCache, entry, entry);
 	configDeviceName = NULL;
 }
 
@@ -1267,8 +718,8 @@ void	readConfig() {
 				fprintf(stderr, "Parse error on line %d: expecting on or off value.\n", line);
 				exit(255);
 			}
-			if (onoffPromisc == -1)
-				onoffPromisc = val;
+			if (setting_onoffPromisc == -1)
+				setting_onoffPromisc = val;
 			continue;
 		}
 		if (!g_ascii_strcasecmp(s->value.v_identifier, "local_aggregation")) {
@@ -1277,8 +728,8 @@ void	readConfig() {
 				fprintf(stderr, "Parse error on line %d: expecting none or host or port.\n", line);
 				exit(255);
 			}
-			if (localAggregation == AGG_UNKNOWN)
-				localAggregation = val;
+			if (setting_localAggregation == AGG_UNKNOWN)
+				setting_localAggregation = val;
 			continue;
 		}
 		if (!g_ascii_strcasecmp(s->value.v_identifier, "remote_aggregation")) {
@@ -1287,8 +738,8 @@ void	readConfig() {
 				fprintf(stderr, "Parse error on line %d: expecting none or host or port.\n", line);
 				exit(255);
 			}
-			if (remoteAggregation == AGG_UNKNOWN)
-				remoteAggregation = val;
+			if (setting_remoteAggregation == AGG_UNKNOWN)
+				setting_remoteAggregation = val;
 			continue;
 		}
 		if (!g_ascii_strcasecmp(s->value.v_identifier, "select_rule")) {
@@ -1325,11 +776,11 @@ int main(int argc, char ** argv) {
 	char * deviceName = NULL;
 	char * selectRuleName = NULL;
 
-	onoffContentFiltering = TRUE;
+	setting_onoffContentFiltering = TRUE;
 	onoffBitValues = FALSE;
-	onoffPromisc = -1;
-	localAggregation = AGG_UNKNOWN;
-	remoteAggregation = AGG_UNKNOWN;
+	setting_onoffPromisc = -1;
+	setting_localAggregation = AGG_UNKNOWN;
+	setting_remoteAggregation = AGG_UNKNOWN;
 	
 	for (a=1; a<argc; a++) {
 		if (!strcmp(argv[a], "-v") || !strcmp(argv[a], "--version")) {
@@ -1363,7 +814,7 @@ int main(int argc, char ** argv) {
 			continue;
 		}
 		if (!strcmp(argv[a], "-c") || !strcmp(argv[a], "--content-filter")) {
-			onoffContentFiltering = FALSE;
+			setting_onoffContentFiltering = FALSE;
 			continue;
 		}
 		if (!strcmp(argv[a], "-i") || !strcmp(argv[a], "--interface")) {
@@ -1419,18 +870,18 @@ int main(int argc, char ** argv) {
 			continue;
 		}
 		if (!strcmp(argv[a], "-p") || !strcmp(argv[a], "--promiscuous")) {
-			onoffPromisc = TRUE;
+			setting_onoffPromisc = TRUE;
 			continue;
 		}
 		if (!strcmp(argv[a], "--local-aggr")) {
-			if (a+1>=argc || (localAggregation = parse_aggregation(argv[++a]))==-1) {
+			if (a+1>=argc || (setting_localAggregation = parse_aggregation(argv[++a]))==-1) {
 				fprintf(stderr, "%s switch requires none, host or port as an argument\n", argv[a]);
 				exit(255);
 			}
 			continue;
 		}
 		if (!strcmp(argv[a], "--remote-aggr")) {
-			if (a+1>=argc || (remoteAggregation = parse_aggregation(argv[++a]))==-1) {
+			if (a+1>=argc || (setting_remoteAggregation = parse_aggregation(argv[++a]))==-1) {
 				fprintf(stderr, "%s switch requires none, host or port as an argument\n", argv[a]);
 				exit(255);
 			}
@@ -1442,21 +893,11 @@ int main(int argc, char ** argv) {
 
 	g_thread_init(NULL);
 
-	packetQueue = g_queue_new();
-	packetQueueCond = g_cond_new();
-	packetQueueMutex = g_mutex_new();
-
-	resolverCache = g_hash_table_new((GHashFunc)hashResolvEntry, (GEqualFunc)compareResolvEntry);
-	resolverCacheMutex = g_mutex_new();
-
-	streamTable = g_hash_table_new((GHashFunc)hashStream, (GEqualFunc)compareStream);
-	streamTableMutex = g_mutex_new();
-
-	streamArray = g_ptr_array_new();
-	streamArrayMutex = g_mutex_new();
+	jcapture_Setup();
+	jprocessor_Setup();
+	jresolver_Setup();
 
 	displayStreamsMutex = g_mutex_new();
-	freePacketStackMutex = g_mutex_new();
 
 	gethostbyaddrMutex = g_mutex_new();
 
@@ -1467,12 +908,17 @@ int main(int argc, char ** argv) {
 	initDefaults();
 	readConfig();
 
-	if (onoffPromisc == -1)
-		onoffPromisc = FALSE;
-	if (localAggregation == AGG_UNKNOWN)
-		localAggregation = AGG_NONE;
-	if (remoteAggregation == AGG_UNKNOWN)
-		remoteAggregation = AGG_NONE;
+	jcapture_SetPromisc( setting_onoffPromisc == -1 ? FALSE : setting_onoffPromisc );
+
+	if (setting_localAggregation == AGG_UNKNOWN)
+		setting_localAggregation = AGG_NONE;
+	if (setting_remoteAggregation == AGG_UNKNOWN)
+		setting_remoteAggregation = AGG_NONE;
+
+	jprocessor_SetLocalAggregation(setting_localAggregation);
+	jprocessor_SetRemoteAggregation(setting_remoteAggregation);
+	jprocessor_SetContentFiltering(setting_onoffContentFiltering);
+
 	if (selectRuleName) {
 		int i;
 		for (i=0; i<bpfFilters->len/2; i++) {
@@ -1490,37 +936,48 @@ int main(int argc, char ** argv) {
 		}
 	}
 
-	lookupDevices();
+	if (!jdevice_LookupDevices()) {
+		exit(255);
+	}
 	
 	newDevice = NULL;
 
-	if (!devices_count) {
+	if (!jdevice_DevicesCount) {
 			if (!deviceName && !configDeviceName) {
 				fprintf(stderr, "Autodiscovery found no devices. Specify device you want to watch with -i parameter\n");
 				exit(255);
 			} else if (deviceName) {
-				createDevice(deviceName);
+				if (!jdevice_CreateSingleDevice(deviceName)) {
+					exit(255);
+				}
 			} else {
-				createDevice(configDeviceName);
+				if (!jdevice_CreateSingleDevice(configDeviceName)) {
+					exit(255);
+				}
 			}
 	} else if (deviceName || configDeviceName) {
 		int i;
 		if (!deviceName && configDeviceName)
 			deviceName = configDeviceName;
-		for (i=0; i<devices_count; i++) {
-			if (!strcmp(devices[i].name, deviceName)) {
-				newDevice = devices + i;
+		for (i=0; i<jdevice_DevicesCount; i++) {
+			if (!strcmp(jdevice_Devices[i].name, deviceName)) {
+				newDevice = jdevice_Devices + i;
 				break;
 			}
 		}
-		if (!newDevice)
-			createDevice(deviceName);
+		if (!newDevice) {
+			if (!jdevice_CreateSingleDevice(deviceName)) {
+				exit(255);
+			}
+		}
 	}
 
 	if (!newDevice)
-		newDevice = devices;
+		newDevice = jdevice_Devices;
 
-	checkDevices();
+	if (!jdevice_CheckDevices()) {
+		exit(255);
+	}
 
 	initscr();
 	cbreak();
@@ -1530,25 +987,16 @@ int main(int argc, char ** argv) {
 	keypad(stdscr, TRUE);
 	nodelay(stdscr, TRUE);
 
-	resolverThreadPool = g_thread_pool_new((GFunc)resolverThreadFunc, NULL, 5, FALSE, NULL);
-
 	while (newDevice) {
 
 		clearStatistics();
-		activeDevice = newDevice;
+		jcapture_SetDevice(newDevice);
+		jcapture_SetBpfFilterText(newBPFFilter);
 		newDevice = NULL;
 		displayStreams = NULL;
 		displayStreamsCount = 0;
 
-		g_get_current_time(&startTime);
-		totalBytes = 0;
-		totalSrcBytes = 0;
-		totalDstBytes = 0;
-		totalPackets = 0;
-		totalSrcBPS = 0;
-		totalDstBPS = 0;
-		totalBPS = 0;
-
+		jprocessor_ResetStats();
 		activeLines = 0;
 		activeColumns = 0;
 
@@ -1560,9 +1008,10 @@ int main(int argc, char ** argv) {
 		clear();
 		drawScreen();
 		
-		snifferThread = g_thread_create((GThreadFunc)snifferThreadFunc, NULL, TRUE, NULL);
+		jcapture_Start();
+
 		sorterThread = g_thread_create((GThreadFunc)sorterThreadFunc, NULL, FALSE, NULL);
-		processorThread = g_thread_create((GThreadFunc)processorThreadFunc, NULL, FALSE, NULL);
+		jprocessor_Start();
 		displayThread = g_thread_create((GThreadFunc)displayThreadFunc, NULL, TRUE, NULL);
 		g_thread_join(displayThread);
 
@@ -1572,7 +1021,7 @@ int main(int argc, char ** argv) {
 			break;
 		}
 
-		g_thread_join(snifferThread);
+		jcapture_Kill();
 		
 		while (threadCount) {
 			g_thread_yield();

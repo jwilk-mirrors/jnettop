@@ -16,14 +16,14 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.11 2004-10-04 12:50:32 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.12 2005-06-30 13:58:52 merunka Exp $
  * 
  */
 
 #include "jnettop.h"
 #include <netinet/ip6.h>
 
-gboolean resolveStreamTCP(const gchar *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+gboolean resolveStreamTCP(const gchar *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	guint	hlen;
 	const struct tcphdr *tcp = (const struct tcphdr *)data;
 	if (len < sizeof(struct tcphdr)) {
@@ -35,36 +35,36 @@ gboolean resolveStreamTCP(const gchar *data, guint len, ntop_stream *stream, nto
 	}
 	stream->srcport = ntohs(tcp->th_sport);
 	stream->dstport = ntohs(tcp->th_dport);
-	stream->proto = NTOP_PROTO_TCP;
-	payloads[NTOP_PROTO_TCP].data = data + hlen;
-	payloads[NTOP_PROTO_TCP].len = len - hlen;
+	stream->proto = JBASE_PROTO_TCP;
+	payloads[JBASE_PROTO_TCP].data = data + hlen;
+	payloads[JBASE_PROTO_TCP].len = len - hlen;
 	return TRUE;
 }
 
-gboolean resolveStreamUDP(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+gboolean resolveStreamUDP(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	const struct udphdr *udp = (const struct udphdr *)data;
 	if (len < sizeof(struct udphdr)) {
 		return FALSE;
 	}
 	stream->srcport = ntohs(udp->uh_sport);
 	stream->dstport = ntohs(udp->uh_dport);
-	stream->proto = NTOP_PROTO_UDP;
-	payloads[NTOP_PROTO_UDP].data = data + sizeof(struct udphdr);
-	payloads[NTOP_PROTO_UDP].len = len - sizeof(struct udphdr);
+	stream->proto = JBASE_PROTO_UDP;
+	payloads[JBASE_PROTO_UDP].data = data + sizeof(struct udphdr);
+	payloads[JBASE_PROTO_UDP].len = len - sizeof(struct udphdr);
 	return TRUE;
 }
 
-gboolean resolveStreamICMP(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+gboolean resolveStreamICMP(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	const struct icmp *icmp = (const struct icmp *)data;
 	if (len < sizeof(struct icmp)) {
 		return FALSE;
 	}
-	stream->proto = NTOP_PROTO_ICMP;
+	stream->proto = JBASE_PROTO_ICMP;
 	stream->srcport = stream->dstport = icmp->icmp_type;
 	return TRUE;
 }
 
-gboolean resolveStreamIP(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+gboolean resolveStreamIP(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	guint	hlen;
 	const struct ip	*ip = (const struct ip *)data;
 	if (len < sizeof(struct ip)) {
@@ -76,7 +76,7 @@ gboolean resolveStreamIP(const gchar  *data, guint len, ntop_stream *stream, nto
 	}
 	memcpy(&stream->src.addr4, &ip->ip_src, sizeof(struct in_addr));
 	memcpy(&stream->dst.addr4, &ip->ip_dst, sizeof(struct in_addr));
-	stream->proto = NTOP_PROTO_IP;
+	stream->proto = JBASE_PROTO_IP;
 	if (len < hlen) {
 		printf("len<hlen\n");
 		return TRUE;
@@ -89,8 +89,8 @@ gboolean resolveStreamIP(const gchar  *data, guint len, ntop_stream *stream, nto
 	}
 	data += hlen;
 	len -= hlen;
-	payloads[NTOP_PROTO_IP].data = data;
-	payloads[NTOP_PROTO_IP].len = len;
+	payloads[JBASE_PROTO_IP].data = data;
+	payloads[JBASE_PROTO_IP].len = len;
 
 	stream->srcport = stream->dstport = ip->ip_p;
 	
@@ -105,7 +105,7 @@ gboolean resolveStreamIP(const gchar  *data, guint len, ntop_stream *stream, nto
 	return TRUE;
 }
 
-gboolean resolveStreamTCP6(const gchar *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+gboolean resolveStreamTCP6(const gchar *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	guint	hlen;
 	const struct tcphdr *tcp = (const struct tcphdr *)data;
 	if (len < sizeof(struct tcphdr)) {
@@ -117,47 +117,47 @@ gboolean resolveStreamTCP6(const gchar *data, guint len, ntop_stream *stream, nt
 	}
 	stream->srcport = ntohs(tcp->th_sport);
 	stream->dstport = ntohs(tcp->th_dport);
-	stream->proto = NTOP_PROTO_TCP6;
-	payloads[NTOP_PROTO_TCP6].data = data + hlen;
-	payloads[NTOP_PROTO_TCP6].len = len - hlen;
+	stream->proto = JBASE_PROTO_TCP6;
+	payloads[JBASE_PROTO_TCP6].data = data + hlen;
+	payloads[JBASE_PROTO_TCP6].len = len - hlen;
 	return TRUE;
 }
 
-gboolean resolveStreamUDP6(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+gboolean resolveStreamUDP6(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	const struct udphdr *udp = (const struct udphdr *)data;
 	if (len < sizeof(struct udphdr)) {
 		return FALSE;
 	}
 	stream->srcport = ntohs(udp->uh_sport);
 	stream->dstport = ntohs(udp->uh_dport);
-	stream->proto = NTOP_PROTO_UDP6;
-	payloads[NTOP_PROTO_UDP6].data = data + sizeof(struct udphdr);
-	payloads[NTOP_PROTO_UDP6].len = len - sizeof(struct udphdr);
+	stream->proto = JBASE_PROTO_UDP6;
+	payloads[JBASE_PROTO_UDP6].data = data + sizeof(struct udphdr);
+	payloads[JBASE_PROTO_UDP6].len = len - sizeof(struct udphdr);
 	return TRUE;
 }
 
-gboolean resolveStreamICMP6(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+gboolean resolveStreamICMP6(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	const struct icmp6_hdr *icmp = (const struct icmp6_hdr *)data;
 	if (len < sizeof(struct icmp6_hdr)) {
 		return FALSE;
 	}
-	stream->proto = NTOP_PROTO_ICMP6;
+	stream->proto = JBASE_PROTO_ICMP6;
 	stream->srcport = stream->dstport = icmp->icmp6_type;
 	return TRUE;
 }
 
-gboolean resolveStreamIP6(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+gboolean resolveStreamIP6(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	const struct ip6_hdr	*ip = (const struct ip6_hdr *)data;
 	if (len < sizeof(struct ip6_hdr)) {
 		return FALSE;
 	}
 	memcpy(&stream->src.addr6, &ip->ip6_src, sizeof(struct in6_addr));
 	memcpy(&stream->dst.addr6, &ip->ip6_dst, sizeof(struct in6_addr));
-	stream->proto = NTOP_PROTO_IP6;
+	stream->proto = JBASE_PROTO_IP6;
 	data += sizeof(struct ip6_hdr);
 	len -= sizeof(struct ip6_hdr);
-	payloads[NTOP_PROTO_IP6].data = data;
-	payloads[NTOP_PROTO_IP6].len = len;
+	payloads[JBASE_PROTO_IP6].data = data;
+	payloads[JBASE_PROTO_IP6].len = len;
 
 	stream->srcport = stream->dstport = ip->ip6_nxt;
 
@@ -173,12 +173,12 @@ gboolean resolveStreamIP6(const gchar  *data, guint len, ntop_stream *stream, nt
 	return TRUE;
 }
 
-gboolean resolveStreamARP(const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
-	stream->proto = NTOP_PROTO_ARP;
+gboolean resolveStreamARP(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
+	stream->proto = JBASE_PROTO_ARP;
 	return TRUE;
 }
 
-gboolean resolveStreamIPn(const ntop_packet *packet, const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+gboolean resolveStreamIPn(const jbase_packet *packet, const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	const struct ip	*ip = (const struct ip *)data;
 	if (len < 4) {
 		return FALSE;
@@ -192,7 +192,7 @@ gboolean resolveStreamIPn(const ntop_packet *packet, const gchar  *data, guint l
 	return FALSE;
 }
 
-gboolean resolveStreamEther(const ntop_packet *packet, const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+gboolean resolveStreamEther(const jbase_packet *packet, const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	if (len<NTOP_ETHER_HDRLEN) {
 		return FALSE;
 	} else
@@ -206,9 +206,9 @@ gboolean resolveStreamEther(const ntop_packet *packet, const gchar  *data, guint
 
 		data += NTOP_ETHER_HDRLEN;
 		len -= NTOP_ETHER_HDRLEN;
-		stream->proto = NTOP_PROTO_ETHER;
-		payloads[NTOP_PROTO_ETHER].data = data;
-		payloads[NTOP_PROTO_ETHER].len = len;
+		stream->proto = JBASE_PROTO_ETHER;
+		payloads[JBASE_PROTO_ETHER].data = data;
+		payloads[JBASE_PROTO_ETHER].len = len;
 		switch (proto) {
 		case ETHERTYPE_IP:
 			return resolveStreamIP(data, len, stream, payloads);
@@ -227,7 +227,7 @@ gboolean resolveStreamEther(const ntop_packet *packet, const gchar  *data, guint
 }
 
 #ifdef linux
-gboolean resolveStreamSLL(const ntop_packet *packet, const gchar  *data, guint len, ntop_stream *stream, ntop_payload_info *payloads) {
+gboolean resolveStreamSLL(const jbase_packet *packet, const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	if (len<SLL_HDR_LEN) {
 		return FALSE;
 	} else
@@ -244,9 +244,9 @@ gboolean resolveStreamSLL(const ntop_packet *packet, const gchar  *data, guint l
 		}
 		data += SLL_HDR_LEN;
 		len -= SLL_HDR_LEN;
-		stream->proto = NTOP_PROTO_SLL;
-		payloads[NTOP_PROTO_SLL].data = data;
-		payloads[NTOP_PROTO_SLL].len = len;
+		stream->proto = JBASE_PROTO_SLL;
+		payloads[JBASE_PROTO_SLL].data = data;
+		payloads[JBASE_PROTO_SLL].len = len;
 		switch (proto) {
 		case ETH_P_802_2:
 			return resolveStreamEther(packet, data, len, stream, payloads);
@@ -266,7 +266,7 @@ gboolean resolveStreamSLL(const ntop_packet *packet, const gchar  *data, guint l
 }
 #endif
 
-gboolean resolveStream(const ntop_packet *packet, ntop_stream *stream, ntop_payload_info *payloads) {
+gboolean resolveStream(const jbase_packet *packet, jbase_stream *stream, jbase_payload_info *payloads) {
 	guint		len = packet->header.caplen;
 	const gchar 	*data = packet->data;
 	gboolean	result;
@@ -274,8 +274,8 @@ gboolean resolveStream(const ntop_packet *packet, ntop_stream *stream, ntop_payl
 
 	result = FALSE;
 
-	payloads[NTOP_PROTO_UNKNOWN].data = data;
-	payloads[NTOP_PROTO_UNKNOWN].len = len;
+	payloads[JBASE_PROTO_UNKNOWN].data = data;
+	payloads[JBASE_PROTO_UNKNOWN].len = len;
 
 	switch (packet->dataLink) {
 	case DLT_EN10MB:
@@ -304,17 +304,17 @@ gboolean resolveStream(const ntop_packet *packet, ntop_stream *stream, ntop_payl
 	if (stream->rxtx != RXTX_UNKNOWN) {
 		cmpres = stream->rxtx;
 	} else {
-		cmpres = memcmp(&stream->src, &stream->dst, sizeof(ntop_mutableaddress));
+		cmpres = memcmp(&stream->src, &stream->dst, sizeof(jbase_mutableaddress));
 		if (cmpres == 0) {
 			cmpres = stream->srcport > stream->dstport;
 		}
 	}
 	if (cmpres > 0) {
-		ntop_mutableaddress addr;
+		jbase_mutableaddress addr;
 		gushort		port;
-		memcpy(&addr, &stream->src, sizeof(ntop_mutableaddress));
-		memcpy(&stream->src, &stream->dst, sizeof(ntop_mutableaddress));
-		memcpy(&stream->dst, &addr, sizeof(ntop_mutableaddress));
+		memcpy(&addr, &stream->src, sizeof(jbase_mutableaddress));
+		memcpy(&stream->src, &stream->dst, sizeof(jbase_mutableaddress));
+		memcpy(&stream->dst, &addr, sizeof(jbase_mutableaddress));
 		port = stream->srcport;
 		stream->srcport = stream->dstport;
 		stream->dstport = port;
