@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.30 2005-06-30 13:58:52 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.31 2005-06-30 15:21:50 merunka Exp $
  *
  */
 
@@ -31,7 +31,6 @@ const jbase_device	*newDevice;
 GMutex		*statusMutex;
 char		*statusMessage;
 GTimeVal	statusTimeout;
-GMutex		*gethostbyaddrMutex;
 
 char		*configFileName;
 GPtrArray	*bpfFilters;
@@ -53,7 +52,6 @@ gchar 		line0FormatString[512], line1FormatString[512], line2FormatString[512];
 
 gboolean	onoffBitValues;
 gboolean	onoffPackets;
-gboolean	onoffSuspended;
 
 gboolean	setting_onoffContentFiltering;
 gboolean	setting_onoffPromisc;
@@ -69,60 +67,6 @@ int		displayMode = DISPLAYMODE_NORMAL;
 
 WINDOW		*listWindow;
 
-const char * validateBPFFilter(char *filter) {
-	const char *ret = NULL;
-	struct bpf_program program;
-	pcap_t *pcap;
-	pcap = pcap_open_dead(DLT_EN10MB, 1500);
-	if (pcap_compile(pcap, &program, filter, 0, 0xFFFFFFFF) == -1) {
-		ret = pcap_geterr(pcap);
-	} else {
-		JBASE_PCAP_FREECODE(pcap, &program);
-	}
-	pcap_close(pcap);
-	return ret;
-}
-
-int	isHostAggregation(int af, const jbase_mutableaddress *addr) {
-	switch (af) {
-		case AF_INET:
-			return addr->addr4.s_addr == htonl(0x01000000);
-		case AF_INET6:
-			return addr->addr6.ntop_s6_addr32[0] == 0x0 && addr->addr6.ntop_s6_addr32[1] == 0x0 && addr->addr6.ntop_s6_addr32[2] == 0x0  && addr->addr6.ntop_s6_addr32[3] == htonl(0x01000000);
-	}
-	return 0;
-}
-
-const char * address2String(int af, const jbase_mutableaddress *src, char *dst, size_t cnt) {
-	if (isHostAggregation(af, src)) {
-		*dst = '\0';
-		return dst;
-	}
-#if HAVE_INET_NTOP
-	return inet_ntop(af, (const void *)src, dst, cnt);
-#elif HAVE_INET_NTOA
-	static GStaticMutex mutex = G_STATIC_MUTEX_INIT;
-	char *tmp, *ret = NULL;
-	g_static_mutex_lock(&mutex);
-	switch (af) {
-	case AF_INET:
-		tmp = inet_ntoa(src->addr4);
-		break;
-	case AF_INET6:
-		g_snprintf(dst, cnt, "ipv6-res.-n/a"); //TODO: find an alternative way to resolve IPv6
-		return dst;
-	}
-	if (tmp && strlen(tmp)<cnt-1) {
-		strcpy(dst, tmp);
-		ret = dst;
-	}
-	g_static_mutex_unlock(&mutex);
-	return ret;
-#else
-# error "no funtion to convert internet address to string found by configure"
-#endif
-}
-
 void debug(const char *format, ...) {
 	if (debugFile) {
 		va_list ap;
@@ -130,30 +74,6 @@ void debug(const char *format, ...) {
 		vfprintf(debugFile, format, ap);
 		va_end(ap);
 	}
-}
-
-void freeStream(gpointer ptr) {
-	jbase_stream *s = (jbase_stream *)ptr;
-	if (s->filterDataFreeFunc)
-		s->filterDataFreeFunc(s);
-	g_free(s);
-}
-
-gint compareStreamByStat(gconstpointer a, gconstpointer b) {
-	const jbase_stream	*astr = *(const jbase_stream **)a;
-	const jbase_stream	*bstr = *(const jbase_stream **)b;
-	if (onoffPackets) {
-		if (astr->totalpps > bstr->totalpps)
-			return -1;
-		else if (astr->totalpps == bstr->totalpps)
-			return 0;
-	} else {
-		if (astr->totalbps > bstr->totalbps)
-			return -1;
-		else if (astr->totalbps == bstr->totalbps)
-			return 0;
-	}
-	return 1;
 }
 
 int	activeLines=1, activeColumns=1;
@@ -311,72 +231,39 @@ gpointer sorterThreadFunc(gpointer data) {
 		streams = g_new0(jbase_stream *, lines);
 		
 		g_mutex_lock(jprocessor_StreamArrayMutex);
-		if (jprocessor_StreamArray->len > 0) {
-			jprocessor_UpdateBPS();
-			if (!onoffSuspended)
-				g_ptr_array_sort(jprocessor_StreamArray, (GCompareFunc)compareStreamByStat);
-		}
-		for (i=0,j=0; i<jprocessor_StreamArray->len && j<lines; i++) {
-			jbase_stream *s = (jbase_stream *)g_ptr_array_index(jprocessor_StreamArray, i);
-			if (s->dead > 5) {
-				continue;
-			}
-			s->displayed ++;
-			streams[j++] = s;
-		}
-		lines = j;
-		g_mutex_unlock(jprocessor_StreamArrayMutex);
-
-		g_mutex_lock(displayStreamsMutex);
-		oldStreams = displayStreams;
-		oldLines   = displayStreamsCount;
-		displayStreams = streams;
-		displayStreamsCount = lines;
-		g_mutex_unlock(displayStreamsMutex);
-
-		for (i=0; i<oldLines; i++) {
-			oldStreams[i]->displayed --;
-		}
-		if (oldStreams)
-			g_free(oldStreams);
-
-		g_mutex_lock(jprocessor_StreamArrayMutex);
-		g_mutex_lock(jprocessor_StreamTableMutex);
-
-		for (i=0; i<jprocessor_StreamArray->len; i++) {
-			jbase_stream *s = (jbase_stream *)g_ptr_array_index(jprocessor_StreamArray, i);
-			if (s->dead && ++s->dead > 7 && !s->displayed) {
-				g_ptr_array_remove_index_fast ( jprocessor_StreamArray, i );
-				g_hash_table_remove ( jprocessor_StreamTable, s );
-				freeStream(s);
-				i--;
-			}
-		}
-
-		g_mutex_unlock(jprocessor_StreamTableMutex);
-		g_mutex_unlock(jprocessor_StreamArrayMutex);
-
 		g_get_current_time(&t);
-		g_usleep(1000000 - t.tv_usec);
+		t.tv_sec ++;
+		if (g_cond_timed_wait(jprocessor_StreamArrayCond, jprocessor_StreamArrayMutex, &t)) {
+			for (i=0,j=0; i<jprocessor_StreamArray->len && j<lines; i++) {
+				jbase_stream *s = (jbase_stream *)g_ptr_array_index(jprocessor_StreamArray, i);
+				if (s->dead > 5) {
+					continue;
+				}
+				s->displayed ++;
+				streams[j++] = s;
+			}
+			lines = j;
+			g_mutex_unlock(jprocessor_StreamArrayMutex);
+
+			g_mutex_lock(displayStreamsMutex);
+			oldStreams = displayStreams;
+			oldLines   = displayStreamsCount;
+			displayStreams = streams;
+			displayStreamsCount = lines;
+			g_mutex_unlock(displayStreamsMutex);
+
+			for (i=0; i<oldLines; i++) {
+				oldStreams[i]->displayed --;
+			}
+			if (oldStreams)
+				g_free(oldStreams);
+		} else {
+			g_mutex_unlock(jprocessor_StreamArrayMutex);
+		}
 	}
 
 	threadCount --;
 	return NULL;
-}
-
-gboolean	removeStreamTableEntry(gpointer key, gpointer value, gpointer user_data) {
-	freeStream(key);
-	// value is the same pointer as key
-	return TRUE;
-}
-
-void     clearStatistics() {
-	int            	i;
-
-	for (i=jprocessor_StreamArray->len-1; i>=0; i--) {
-		g_ptr_array_remove_index_fast(jprocessor_StreamArray, i);
-	}
-	g_hash_table_foreach_remove(jprocessor_StreamTable, (GHRFunc)removeStreamTableEntry, NULL);
 }
 
 void	doDisplayStreams() {
@@ -401,13 +288,13 @@ void	doDisplayStreams() {
 		formatNumber(onoffPackets ? s->totalpackets : s->totalbytes, total, 6);
 		formatNumber(onoffPackets ? s->srcpackets : s->srcbytes, totalsrc, 6);
 		formatNumber(onoffPackets ? s->dstpackets : s->dstbytes, totaldst, 6);
-		address2String(JBASE_AF(s->proto), &s->src, srcaddr, INET6_ADDRSTRLEN);
+		jutil_Address2String(JBASE_AF(s->proto), &s->src, srcaddr, INET6_ADDRSTRLEN);
 		if (s->srcresolv == NULL || s->srcresolv->name == NULL) {
 			psrcaddr = srcaddr;
 		} else {
 			psrcaddr = s->srcresolv->name;
 		}
-		address2String(JBASE_AF(s->proto), &s->dst, dstaddr, INET6_ADDRSTRLEN);
+		jutil_Address2String(JBASE_AF(s->proto), &s->dst, dstaddr, INET6_ADDRSTRLEN);
 		if (s->dstresolv == NULL || s->dstresolv->name == NULL) {
 			pdstaddr = dstaddr;
 		} else {
@@ -430,7 +317,6 @@ void	doDisplayStreams() {
 }
 
 void    doDisplayWholeScreen() {
-	g_mutex_lock(displayStreamsMutex);
 	drawScreen();
 	drawHeader();
 	werase(listWindow);
@@ -443,6 +329,7 @@ gpointer displayThreadFunc(gpointer data) {
 	while (jcapture_IsRunning) {
 		int i;
 		
+		g_mutex_lock(displayStreamsMutex);
 		doDisplayWholeScreen();
 
 		switch (displayMode) {
@@ -496,10 +383,11 @@ gpointer displayThreadFunc(gpointer data) {
 						break;
 					case 'p':
 						onoffPackets = !onoffPackets;
+						jprocessor_SetSorting( jprocessor_Sorting, onoffPackets ? (GCompareFunc) jprocessor_compare_ByPacketsStat : (GCompareFunc) jprocessor_compare_ByBytesStat );
 						break;
 					case 's':
-						onoffSuspended = !onoffSuspended;
-						if (onoffSuspended)
+						jprocessor_SetSorting(!jprocessor_Sorting, NULL);
+						if (!jprocessor_Sorting)
 							drawStatus("Streams sorting suspended.");
 						else
 							drawStatus("Streams sorting resumed.");
@@ -567,10 +455,6 @@ gpointer displayThreadFunc(gpointer data) {
 
 	threadCount --;
 	return NULL;
-}
-
-void    initDefaults() {
-	configDeviceName = NULL;
 }
 
 int	config_parse_boolean(GScanner *s) {
@@ -860,7 +744,7 @@ int main(int argc, char ** argv) {
 				exit(255);
 			}
 			commandLineRule = argv[++a];
-			ret = validateBPFFilter(commandLineRule);
+			ret = jutil_ValidateBPFFilter(commandLineRule);
 			if (ret) {
 				fprintf(stderr, "Error compiling rule: %s\n", ret);
 				exit(255);
@@ -898,23 +782,19 @@ int main(int argc, char ** argv) {
 	jresolver_Setup();
 
 	displayStreamsMutex = g_mutex_new();
-
-	gethostbyaddrMutex = g_mutex_new();
-
 	bpfFilters = g_ptr_array_new();
-
 	statusMutex = g_mutex_new();
 
-	initDefaults();
-	readConfig();
+	configDeviceName = NULL;
 
-	jcapture_SetPromisc( setting_onoffPromisc == -1 ? FALSE : setting_onoffPromisc );
+	readConfig();
 
 	if (setting_localAggregation == AGG_UNKNOWN)
 		setting_localAggregation = AGG_NONE;
 	if (setting_remoteAggregation == AGG_UNKNOWN)
 		setting_remoteAggregation = AGG_NONE;
 
+	jcapture_SetPromisc( setting_onoffPromisc == -1 ? FALSE : setting_onoffPromisc );
 	jprocessor_SetLocalAggregation(setting_localAggregation);
 	jprocessor_SetRemoteAggregation(setting_remoteAggregation);
 	jprocessor_SetContentFiltering(setting_onoffContentFiltering);
@@ -989,14 +869,14 @@ int main(int argc, char ** argv) {
 
 	while (newDevice) {
 
-		clearStatistics();
+		jprocessor_ResetStats();
+
 		jcapture_SetDevice(newDevice);
 		jcapture_SetBpfFilterText(newBPFFilter);
 		newDevice = NULL;
 		displayStreams = NULL;
 		displayStreamsCount = 0;
 
-		jprocessor_ResetStats();
 		activeLines = 0;
 		activeColumns = 0;
 

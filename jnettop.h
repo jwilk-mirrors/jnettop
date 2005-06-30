@@ -23,3 +23,5 @@
 #include "jcapture.h"
 #include "jprocessor.h"
 #include "jresolver.h"
+#include "jutil.h"
+

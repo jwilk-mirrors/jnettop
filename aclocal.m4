@@ -12,7 +12,7 @@
 # PARTICULAR PURPOSE.
 
 
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/aclocal.m4,v 1.26 2005-06-30 13:58:52 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/aclocal.m4,v 1.27 2005-06-30 15:21:49 merunka Exp $
 
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_5], [Set to 1 if gethostbyaddr_r takes 5 arguments])
 AH_TEMPLATE([HAVE_GETHOSTBYADDR_R_7], [Set to 1 if gethostbyaddr_r takes 7 arguments])
@@ -1106,6 +1106,9 @@ AC_ARG_ENABLE(glibtest, [  --disable-glibtest      do not try to compile and run
       case "$module" in
          gmodule) 
              pkg_config_args="$pkg_config_args gmodule-2.0"
+         ;;
+         gmodule-no-export) 
+             pkg_config_args="$pkg_config_args gmodule-no-export-2.0"
          ;;
          gobject) 
              pkg_config_args="$pkg_config_args gobject-2.0"

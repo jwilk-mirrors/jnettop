@@ -4,14 +4,27 @@
 #include "jresolver.h"
 
 GThread			*processorThread;
+GThread			*cleanupThread;
+GHashTable		*streamTable;
+GMutex			*streamTableMutex;
+
 jprocessor_stats	jprocessor_Stats;
-GHashTable		*jprocessor_StreamTable;
-GMutex			*jprocessor_StreamTableMutex;
 GPtrArray		*jprocessor_StreamArray;
 GMutex			*jprocessor_StreamArrayMutex;
+GCond			*jprocessor_StreamArrayCond;
 guint			jprocessor_LocalAggregation;
 guint			jprocessor_RemoteAggregation;
 gboolean		jprocessor_ContentFiltering;
+gboolean		jprocessor_Sorting;
+GCompareFunc		jprocessor_SortingFunction;
+gint			jprocessor_MaxDeadTime;
+
+static void freeStream(gpointer ptr) {
+	jbase_stream *s = (jbase_stream *)ptr;
+	if (s->filterDataFreeFunc)
+		s->filterDataFreeFunc(s);
+	g_free(s);
+}
 
 static void	markAllAsDead() {
 	int i;
@@ -70,17 +83,34 @@ static gboolean compareStream(gconstpointer a, gconstpointer b) {
 }
 
 gboolean	jprocessor_Setup() {
-	jprocessor_StreamTable = g_hash_table_new((GHashFunc)hashStream, (GEqualFunc)compareStream);
-	jprocessor_StreamTableMutex = g_mutex_new();
+	streamTable = g_hash_table_new((GHashFunc)hashStream, (GEqualFunc)compareStream);
+	streamTableMutex = g_mutex_new();
 	jprocessor_StreamArray = g_ptr_array_new();
 	jprocessor_StreamArrayMutex = g_mutex_new();
+	jprocessor_StreamArrayCond = g_cond_new();
 	jprocessor_ResetStats();
+	jprocessor_Sorting = TRUE;
+	jprocessor_SortingFunction = (GCompareFunc) jprocessor_compare_ByBytesStat;
+	jprocessor_MaxDeadTime = 7;
+	return TRUE;
+}
+
+static gboolean	removeStreamTableEntry(gpointer key, gpointer value, gpointer user_data) {
+	freeStream(key);
+	// value is the same pointer as key
 	return TRUE;
 }
 
 void	jprocessor_ResetStats() {
+	int            	i;
+
 	memset(&jprocessor_Stats, 0, sizeof(jprocessor_Stats));
 	g_get_current_time(&jprocessor_Stats.startTime);
+
+	for (i=jprocessor_StreamArray->len-1; i>=0; i--) {
+		g_ptr_array_remove_index_fast(jprocessor_StreamArray, i);
+	}
+	g_hash_table_foreach_remove(streamTable, (GHRFunc)removeStreamTableEntry, NULL);
 }
 
 void	jprocessor_UpdateBPS() {
@@ -172,14 +202,14 @@ static void	sortPacket(const jbase_packet *packet) {
 	memset(&packetStream, 0, sizeof(jbase_stream));
 	resolveStream(packet, &packetStream, payloadInfo);
 	aggregateStream(&packetStream);
-	g_mutex_lock(jprocessor_StreamTableMutex);
-	stat = (jbase_stream *)g_hash_table_lookup(jprocessor_StreamTable, &packetStream);
+	g_mutex_lock(streamTableMutex);
+	stat = (jbase_stream *)g_hash_table_lookup(streamTable, &packetStream);
 	if (stat == NULL) {
 		stat = g_new0(jbase_stream, 1);
 		memcpy(stat, &packetStream, sizeof(jbase_stream));
 		g_get_current_time(&stat->firstSeen);
-		g_hash_table_insert(jprocessor_StreamTable, stat, stat);
-		g_mutex_unlock(jprocessor_StreamTableMutex);
+		g_hash_table_insert(streamTable, stat, stat);
+		g_mutex_unlock(streamTableMutex);
 
 		if (jprocessor_ContentFiltering)
 			assignDataFilter(stat);
@@ -191,7 +221,7 @@ static void	sortPacket(const jbase_packet *packet) {
 		g_ptr_array_add(jprocessor_StreamArray, stat);
 		g_mutex_unlock(jprocessor_StreamArrayMutex);
 	} else {
-		g_mutex_unlock(jprocessor_StreamTableMutex);
+		g_mutex_unlock(streamTableMutex);
 	}
 	if (packetStream.direction) {
 		stat->dstbytes += packet->header.len;
@@ -245,7 +275,73 @@ static gpointer processorThreadFunc(gpointer data) {
 	return NULL;
 }
 
+static gpointer cleanupThreadFunc(gpointer data) {
+	threadCount ++;
+
+	while (jcapture_IsRunning) {
+		guint		i;
+		GTimeVal	t;
+
+		g_mutex_lock(jprocessor_StreamArrayMutex);
+
+		if (jprocessor_StreamArray->len > 0) {
+			jprocessor_UpdateBPS();
+			if (jprocessor_Sorting)
+				g_ptr_array_sort(jprocessor_StreamArray, jprocessor_SortingFunction);
+		}
+
+		g_mutex_lock(streamTableMutex);
+
+		for (i=0; i<jprocessor_StreamArray->len; i++) {
+			jbase_stream *s = (jbase_stream *)g_ptr_array_index(jprocessor_StreamArray, i);
+			if (s->dead && ++s->dead > jprocessor_MaxDeadTime && !s->displayed) {
+				g_ptr_array_remove_index_fast ( jprocessor_StreamArray, i );
+				g_hash_table_remove ( streamTable, s );
+				freeStream(s);
+				i--;
+			}
+		}
+
+		g_mutex_unlock(streamTableMutex);
+		g_cond_broadcast(jprocessor_StreamArrayCond);
+		g_mutex_unlock(jprocessor_StreamArrayMutex);
+
+		g_get_current_time(&t);
+		g_usleep(1000000 - t.tv_usec);
+	}
+
+	threadCount --;
+	return NULL;
+}
+
 gboolean	jprocessor_Start() {
 	processorThread = g_thread_create((GThreadFunc)processorThreadFunc, NULL, FALSE, NULL);
+	cleanupThread = g_thread_create((GThreadFunc)cleanupThreadFunc, NULL, FALSE, NULL);
 	return TRUE;
+}
+
+gint jprocessor_compare_ByPacketsStat(gconstpointer a, gconstpointer b) {
+	const jbase_stream	*astr = *(const jbase_stream **)a;
+	const jbase_stream	*bstr = *(const jbase_stream **)b;
+	if (astr->totalpps > bstr->totalpps)
+		return -1;
+	else if (astr->totalpps == bstr->totalpps)
+		return 0;
+	return 1;
+}
+
+gint jprocessor_compare_ByBytesStat(gconstpointer a, gconstpointer b) {
+	const jbase_stream	*astr = *(const jbase_stream **)a;
+	const jbase_stream	*bstr = *(const jbase_stream **)b;
+	if (astr->totalbps > bstr->totalbps)
+		return -1;
+	else if (astr->totalbps == bstr->totalbps)
+		return 0;
+	return 1;
+}
+
+void		jprocessor_SetSorting(gboolean onoff, GCompareFunc compareFunction) {
+	jprocessor_Sorting = onoff;
+	if (compareFunction != NULL)
+		jprocessor_SortingFunction = compareFunction;
 }
