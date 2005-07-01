@@ -5112,9 +5112,6 @@ fi;
          gmodule)
              pkg_config_args="$pkg_config_args gmodule-2.0"
          ;;
-         gmodule-no-export)
-             pkg_config_args="$pkg_config_args gmodule-no-export-2.0"
-         ;;
          gobject)
              pkg_config_args="$pkg_config_args gobject-2.0"
          ;;
@@ -5888,7 +5885,8 @@ done
 
 
 
-for ac_func in localtime_r memmove memset pcap_findalldevs pcap_setnonblock inet_ntop inet_ntoa
+
+for ac_func in localtime_r memmove memset pcap_findalldevs pcap_setnonblock inet_ntop inet_ntoa inet_aton
 do
 as_ac_var=`echo "ac_cv_func_$ac_func" | $as_tr_sh`
 echo "$as_me:$LINENO: checking for $ac_func" >&5

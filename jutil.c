@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jutil.c,v 1.4 2005-07-01 10:02:08 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jutil.c,v 1.5 2005-07-01 11:25:32 merunka Exp $
  *
  */
 
@@ -94,4 +94,22 @@ void memand(char *buf1, const char *buf2, int length) {
 	for (i=0; i<length; i++) {
 		buf1[i] &= buf2[i];
 	}
+}
+
+gboolean jutil_String2Address(const char *address, jbase_mutableaddress *dest, int *af) {
+#ifdef INET_ATON
+	if (inet_aton(address, &dest->addr4)) {
+		*af = AF_INET;
+		return TRUE;
+	}
+	return FALSE;
+#else
+	unsigned long int tmpaddr;
+	tmpaddr = inet_addr(address);
+	if (tmpaddr == -1)
+		return FALSE;
+	memcpy(&dest->addr4, &tmpaddr, sizeof(struct in_addr));
+	*af = AF_INET;
+	return TRUE;
+#endif
 }

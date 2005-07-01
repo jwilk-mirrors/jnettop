@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jconfig.c,v 1.4 2005-07-01 10:25:36 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jconfig.c,v 1.5 2005-07-01 11:25:32 merunka Exp $
  *
  */
 
@@ -69,8 +69,7 @@ static gboolean parse_ip(GScanner *s, jbase_mutableaddress *dest, int *af) {
 	if (tt != G_TOKEN_STRING) {
 		return FALSE;
 	}
-	if (inet_aton(s->value.v_string, &dest->addr4)) {
-		*af = AF_INET;
+	if (jutil_String2Address(s->value.v_string, dest, af)) {
 		return TRUE;
 	}
 	return FALSE;

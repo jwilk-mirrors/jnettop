@@ -1,5 +1,5 @@
 #
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/configure.ac,v 1.23 2005-06-30 19:55:18 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/configure.ac,v 1.24 2005-07-01 11:25:32 merunka Exp $
 #
 # Process this file with autoconf to produce a configure script.
 AC_INIT([jnettop], [0.11.0], [j@kubs.cz])
@@ -38,7 +38,7 @@ AM_PATH_GLIB_2_0(2.0.1,, AC_MSG_ERROR("glib >= 2.0.1 library required"), gthread
 AC_FUNC_MEMCMP
 AC_FUNC_STRFTIME
 AC_FUNC_VPRINTF
-AC_CHECK_FUNCS([localtime_r memmove memset pcap_findalldevs pcap_setnonblock inet_ntop inet_ntoa])
+AC_CHECK_FUNCS([localtime_r memmove memset pcap_findalldevs pcap_setnonblock inet_ntop inet_ntoa inet_aton])
 
 AM_CONFIG_HEADER([config.h])
 AC_CONFIG_FILES([Makefile])
