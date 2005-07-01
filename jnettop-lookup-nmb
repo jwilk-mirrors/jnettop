@@ -18,8 +18,11 @@
 #    along with this program; if not, write to the Free Software
 #    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
-#    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop-lookup-nmb,v 1.1 2005-07-01 10:02:08 merunka Exp $
+#    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop-lookup-nmb,v 1.2 2005-07-01 10:25:37 merunka Exp $
 #
+
+# This is an example script doing IP lookups thru SAMBA name servers. It either returns
+# name resolved from the appropriate IP address or nothing if no name is found.
 
 nmblookup -A $1 | sed -n '
 1 d

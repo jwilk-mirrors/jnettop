@@ -1,7 +1,10 @@
-2005-06-31	Jakub Skopal <j@kubs.cz>
+2005-07-01	Jakub Skopal <j@kubs.cz>
 
  * added pause
  * added sorting
+ * added support for external resolvers
+ * added switch to disable resolving
+   (thanks to Darko K. for patch)
 
 2005-06-30	Jakub Skopal <j@kubs.cz>
 
@@ -137,4 +140,4 @@
 
  * initial release
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.26 2005-07-01 10:02:07 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.27 2005-07-01 10:25:36 merunka Exp $

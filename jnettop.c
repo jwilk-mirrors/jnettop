@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.34 2005-07-01 10:02:08 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.35 2005-07-01 10:25:37 merunka Exp $
  *
  */
 
@@ -487,6 +487,7 @@ void parseCommandLineAndConfig(int argc, char ** argv) {
 				"    -d, --debug filename   write debug information into file\n"
 				"    -f, --config-file name reads configuration from file. defaults to ~/.jnettop\n"
 				"    -i, --interface name   capture packets on specified interface\n"
+				"    -n, --no-resolver      disable resolving of addresses\n"
 				"    --local-aggr arg       set local aggregation to none/host/port\n"
 				"    -p, --promiscuous      enable promisc mode on the devices\n"
 				"    --remote-aggr arg      set remote aggregation to none/host/port\n"
@@ -562,6 +563,10 @@ void parseCommandLineAndConfig(int argc, char ** argv) {
 		}
 		if (!strcmp(argv[a], "-p") || !strcmp(argv[a], "--promiscuous")) {
 			jconfig_Settings.onoffPromisc = TRUE;
+			continue;
+		}
+		if (!strcmp(argv[a], "-n") || !strcmp(argv[a], "--no-resolve")) {
+			jconfig_Settings.onoffResolver = FALSE;
 			continue;
 		}
 		if (!strcmp(argv[a], "--local-aggr")) {

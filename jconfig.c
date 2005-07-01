@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jconfig.c,v 1.3 2005-07-01 10:02:08 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jconfig.c,v 1.4 2005-07-01 10:25:36 merunka Exp $
  *
  */
 
@@ -81,6 +81,7 @@ gboolean jconfig_Setup() {
 	jconfig_Settings._bpfFilters = g_ptr_array_new();
 	jconfig_Settings.onoffContentFiltering = -1;
 	jconfig_Settings.onoffPromisc = -1;
+	jconfig_Settings.onoffResolver = -1;
 	jconfig_Settings.localAggregation = AGG_UNKNOWN;
 	jconfig_Settings.remoteAggregation = AGG_UNKNOWN;
 	jconfig_Settings._selectedBpfFilter = -1;
@@ -244,6 +245,15 @@ gboolean jconfig_ParseFile(char *configFileName) {
 			continue;
 		}
 		if (!g_ascii_strcasecmp(s->value.v_identifier, "resolve")) {
+			int val = parse_boolean(s);
+			if (val == -1) {
+				fprintf(stderr, "Parse error on line %d: expecting on or off value.\n", line);
+				return FALSE;
+			}
+			if (jconfig_Settings.onoffResolver == -1)
+				jconfig_Settings.onoffResolver = val;
+		}
+		if (!g_ascii_strcasecmp(s->value.v_identifier, "resolve_rule")) {
 			int af1, af2;
 			jbase_mutableaddress mask;
 			jbase_mutableaddress value;
@@ -290,6 +300,8 @@ void jconfig_SetDefaults() {
 		jconfig_Settings.onoffContentFiltering = TRUE;
 	if (jconfig_Settings.onoffPromisc == -1)
 		jconfig_Settings.onoffPromisc = FALSE;
+	if (jconfig_Settings.onoffResolver == -1)
+		jconfig_Settings.onoffResolver = TRUE;
 	if (jconfig_Settings.localAggregation == AGG_UNKNOWN)
 		jconfig_Settings.localAggregation = AGG_NONE;
 	if (jconfig_Settings.remoteAggregation == AGG_UNKNOWN)
@@ -301,7 +313,7 @@ void jconfig_ConfigureModules() {
 	jprocessor_SetLocalAggregation(jconfig_Settings.localAggregation);
 	jprocessor_SetRemoteAggregation(jconfig_Settings.remoteAggregation);
 	jprocessor_SetContentFiltering(jconfig_Settings.onoffContentFiltering);
-	
+	jresolver_SetEnabled(jconfig_Settings.onoffResolver);
 }
 
 const char * jconfig_GetSelectedBpfFilterText() {

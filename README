@@ -115,20 +115,24 @@ Since version 0.9, jnettop supports following new keywors:
 Since version 0.11, jnettop supports multiple resolvers. This can be configured
 thru "resolve" keyword in configuration file:
 
-  resolve "<network ip address>" "<network mask>" [normal|external] ("<extscript>")
+  resolve_rule "<network ip>" "<network mask>" [normal|external] ("<extscript>")
 
     this keyword configures resolver, so that it uses the appropriate method
     of resolving for specified network. If this method fails, next one matching
     is used.
     ex.
 
-      resolve "192.168.1.0" "255.255.255.0" normal
-      resolve "192.168.1.0" "255.255.255.0" external "jnettop-lookup-nmb"
+      resolve_rule "192.168.1.0" "255.255.255.0" normal
+      resolve_rule "192.168.1.0" "255.255.255.0" external "jnettop-lookup-nmb"
 
     this will cause jnettop to use normal DNS lookup for all 192.168.1.0/24 address-
     es first. If nothing is found, than external program "jnettop-lookup-smb"
     is used.
     if end of all rules is reached, normal DNS lookup is used.
+
+  resolve [on|off]
+
+    enables/disables resolving completelly
 
 The pathname of configuraton file can be overrided by specifying -f command
 line parameter.
@@ -206,5 +210,5 @@ Copyright (C) 2002, 2003, 2004 Jakub Skopal
 Portions of the package are taken from the tcpdump project and their rights are
 held by their respective owners stated in the beginning of the files.
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/README,v 1.17 2005-07-01 10:02:08 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/README,v 1.18 2005-07-01 10:25:36 merunka Exp $
 

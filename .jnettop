@@ -16,7 +16,7 @@
 #    along with this program; if not, write to the Free Software
 #    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
-#    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/.jnettop,v 1.5 2005-07-01 10:02:07 merunka Exp $
+#    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/.jnettop,v 1.6 2005-07-01 10:25:36 merunka Exp $
 #
 
 # interface	"eth1"
@@ -27,5 +27,7 @@ rule		"IPv6"		"ip6"
 local_aggregation	none
 remote_aggregation	none
 # select_rule	"Google"
-# resolve "192.168.0.0" "255.255.0.0" normal
-# resolve "192.168.0.0" "255.255.0.0" external "/usr/share/jnettop/jnettop-lookup-nmb"
+# resolve_rule "192.168.0.0" "255.255.0.0" normal
+# resolve_rule "192.168.0.0" "255.255.0.0" external "/usr/share/jnettop/jnettop-lookup-nmb"
+# resolve off
+

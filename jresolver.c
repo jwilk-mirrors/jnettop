@@ -16,13 +16,15 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolver.c,v 1.3 2005-07-01 10:02:08 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolver.c,v 1.4 2005-07-01 10:25:37 merunka Exp $
  *
  */
 
 #include "jbase.h"
 #include "jutil.h"
 #include "jresolver.h"
+
+gboolean	jresolver_IsEnabled;
 
 GHashTable	*resolverCache;
 GMutex		*resolverCacheMutex;
@@ -46,7 +48,8 @@ jbase_resolv_entry *jresolver_Lookup(int af, const jbase_mutableaddress *address
 		memcpy(rentry, &key, sizeof(key));
 		g_hash_table_insert(resolverCache, rentry, rentry);
 		g_mutex_unlock(resolverCacheMutex);
-		g_thread_pool_push(resolverThreadPool, rentry, NULL);
+		if (jresolver_IsEnabled)
+			g_thread_pool_push(resolverThreadPool, rentry, NULL);
 	} else {
 		g_mutex_unlock(resolverCacheMutex);
 	}
@@ -207,12 +210,18 @@ void jresolver_AddNormalLookup(int af, const jbase_mutableaddress *mask, const j
 	g_ptr_array_add(resolverTypes, type);
 }
 
+void jresolver_SetEnabled(gboolean isEnabled) {
+	jresolver_IsEnabled = isEnabled;
+}
+
 gboolean jresolver_Setup() {
 	resolverCache = g_hash_table_new((GHashFunc)hashResolvEntry, (GEqualFunc)compareResolvEntry);
 	resolverCacheMutex = g_mutex_new();
 	resolverThreadPool = g_thread_pool_new((GFunc)resolverThreadFunc, NULL, 5, FALSE, NULL);
 	resolverTypes = g_ptr_array_new();
 	gethostbyaddrMutex = g_mutex_new();
+
+	jresolver_IsEnabled = TRUE;
 
 	addZeroResolves();
 	return TRUE;
