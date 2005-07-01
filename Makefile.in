@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.in,v 1.30 2005-06-30 21:34:48 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.in,v 1.31 2005-07-01 10:02:07 merunka Exp $
 SHELL = @SHELL@
 
 srcdir = @srcdir@
@@ -94,6 +94,7 @@ EXTRA_DIST = jnettop.spec .jnettop $(man_MANS)
 
 bin_PROGRAMS = jnettop
 
+dist_pkgdata_SCRIPTS = jnettop-lookup-nmb
 jnettop_SOURCES = jnettop.c jconfig.c jconfig.h jutil.c jutil.h jresolver.c jresolver.h jprocessor.c jprocessor.h jcapture.c jcapture.h jdevice.c jdevice.h jbase.c jbase.h jresolv.c jresolv.h jfilter.c jfilter.h include/ether.h include/ethertype.h include/ip.h include/tcp.h include/udp.h include/sll.h include/icmp.h include/icmp6.h
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -111,6 +112,8 @@ jnettop_OBJECTS = $(am_jnettop_OBJECTS)
 jnettop_LDADD = $(LDADD)
 jnettop_DEPENDENCIES =
 jnettop_LDFLAGS =
+SCRIPTS = $(dist_pkgdata_SCRIPTS)
+
 
 DEFS = @DEFS@
 DEFAULT_INCLUDES =  -I. -I$(srcdir) -I.
@@ -133,9 +136,10 @@ DIST_SOURCES = $(jnettop_SOURCES)
 
 NROFF = nroff
 MANS = $(man_MANS)
-DIST_COMMON = README AUTHORS COPYING ChangeLog INSTALL Makefile.am \
-	Makefile.in NEWS acinclude.m4 aclocal.m4 config.h.in configure \
-	configure.ac depcomp install-sh missing mkinstalldirs
+DIST_COMMON = README $(dist_pkgdata_SCRIPTS) AUTHORS COPYING ChangeLog \
+	INSTALL Makefile.am Makefile.in NEWS acinclude.m4 aclocal.m4 \
+	config.h.in configure configure.ac depcomp install-sh missing \
+	mkinstalldirs
 SOURCES = $(jnettop_SOURCES)
 
 all: config.h
@@ -203,6 +207,26 @@ clean-binPROGRAMS:
 jnettop$(EXEEXT): $(jnettop_OBJECTS) $(jnettop_DEPENDENCIES) 
 	@rm -f jnettop$(EXEEXT)
 	$(LINK) $(jnettop_LDFLAGS) $(jnettop_OBJECTS) $(jnettop_LDADD) $(LIBS)
+dist_pkgdataSCRIPT_INSTALL = $(INSTALL_SCRIPT)
+install-dist_pkgdataSCRIPTS: $(dist_pkgdata_SCRIPTS)
+	@$(NORMAL_INSTALL)
+	$(mkinstalldirs) $(DESTDIR)$(pkgdatadir)
+	@list='$(dist_pkgdata_SCRIPTS)'; for p in $$list; do \
+	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
+	  if test -f $$d$$p; then \
+	    f=`echo "$$p" | sed 's|^.*/||;$(transform)'`; \
+	    echo " $(dist_pkgdataSCRIPT_INSTALL) $$d$$p $(DESTDIR)$(pkgdatadir)/$$f"; \
+	    $(dist_pkgdataSCRIPT_INSTALL) $$d$$p $(DESTDIR)$(pkgdatadir)/$$f; \
+	  else :; fi; \
+	done
+
+uninstall-dist_pkgdataSCRIPTS:
+	@$(NORMAL_UNINSTALL)
+	@list='$(dist_pkgdata_SCRIPTS)'; for p in $$list; do \
+	  f=`echo "$$p" | sed 's|^.*/||;$(transform)'`; \
+	  echo " rm -f $(DESTDIR)$(pkgdatadir)/$$f"; \
+	  rm -f $(DESTDIR)$(pkgdatadir)/$$f; \
+	done
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT) core *.core
@@ -406,10 +430,10 @@ distcleancheck: distclean
 	       exit 1; } >&2
 check-am: all-am
 check: check-am
-all-am: Makefile $(PROGRAMS) $(MANS) config.h
+all-am: Makefile $(PROGRAMS) $(SCRIPTS) $(MANS) config.h
 
 installdirs:
-	$(mkinstalldirs) $(DESTDIR)$(bindir) $(DESTDIR)$(man8dir)
+	$(mkinstalldirs) $(DESTDIR)$(bindir) $(DESTDIR)$(pkgdatadir) $(DESTDIR)$(man8dir)
 
 install: install-am
 install-exec: install-exec-am
@@ -452,7 +476,7 @@ info: info-am
 
 info-am:
 
-install-data-am: install-man
+install-data-am: install-dist_pkgdataSCRIPTS install-man
 
 install-exec-am: install-binPROGRAMS
 
@@ -471,7 +495,8 @@ mostlyclean: mostlyclean-am
 
 mostlyclean-am: mostlyclean-compile mostlyclean-generic
 
-uninstall-am: uninstall-binPROGRAMS uninstall-info-am uninstall-man
+uninstall-am: uninstall-binPROGRAMS uninstall-dist_pkgdataSCRIPTS \
+	uninstall-info-am uninstall-man
 
 uninstall-man: uninstall-man8
 
@@ -480,13 +505,14 @@ uninstall-man: uninstall-man8
 	distclean-compile distclean-depend distclean-generic \
 	distclean-hdr distclean-tags distcleancheck distdir dvi dvi-am \
 	info info-am install install-am install-binPROGRAMS \
-	install-data install-data-am install-exec install-exec-am \
-	install-info install-info-am install-man install-man8 \
-	install-strip installcheck installcheck-am installdirs \
-	maintainer-clean maintainer-clean-generic mostlyclean \
-	mostlyclean-compile mostlyclean-generic tags uninstall \
-	uninstall-am uninstall-binPROGRAMS uninstall-info-am \
-	uninstall-man uninstall-man8
+	install-data install-data-am install-dist_pkgdataSCRIPTS \
+	install-exec install-exec-am install-info install-info-am \
+	install-man install-man8 install-strip installcheck \
+	installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic tags uninstall uninstall-am \
+	uninstall-binPROGRAMS uninstall-dist_pkgdataSCRIPTS \
+	uninstall-info-am uninstall-man uninstall-man8
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

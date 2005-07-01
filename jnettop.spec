@@ -1,4 +1,4 @@
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.spec,v 1.13 2005-06-30 19:55:19 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.spec,v 1.14 2005-07-01 10:02:08 merunka Exp $
 
 Summary: Network traffic tracker
 Name: jnettop
@@ -35,20 +35,25 @@ rm -r $RPM_BUILD_ROOT
 %defattr(-,root,root)
 %{_bindir}/jnettop
 %{_mandir}/man8/jnettop.8.gz
+%dir %{_datadir}/%{name}
+%{_datadir}/%{name}/jnettop-lookup-nmb
 %doc AUTHORS ChangeLog COPYING INSTALL NEWS README .jnettop
 
 %changelog
-* Thu Jun 30 2005 Jakub Skopal <j@kubs.cz> 0.11.1
+* Thu Jul 1 2005 Jakub Skopal <j@kubs.cz> 0.11.0-2
+- added jnettop-lookup-nmb
+
+* Thu Jun 30 2005 Jakub Skopal <j@kubs.cz> 0.11.0-1
 - transition to release 0.11.0, see ChangeLog
 
-* Sat Oct 2 2004 Jakub Skopal <j@kubs.cz> 0.10.1
+* Sat Oct 2 2004 Jakub Skopal <j@kubs.cz> 0.10.1-1
 - transition to release 0.10.1, see ChangeLog
 
-* Wed Sep 29 2004 Jakub Skopal <j@kubs.cz> 0.10
+* Wed Sep 29 2004 Jakub Skopal <j@kubs.cz> 0.10-1
 - manual page is now part of RPM package
 - transition to release 0.10, see ChangeLog
 
-* Wed Jul 30 2003 Jakub Skopal <j@kubs.cz> 0.9
+* Wed Jul 30 2003 Jakub Skopal <j@kubs.cz> 0.9-1
 - transition to release 0.9, see ChangeLog
 
 * Wed Apr 23 2003 Jakub Skopal <j@kubs.cz> 0.8.1-1

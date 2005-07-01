@@ -1,3 +1,8 @@
+2005-06-31	Jakub Skopal <j@kubs.cz>
+
+ * added pause
+ * added sorting
+
 2005-06-30	Jakub Skopal <j@kubs.cz>
 
  * refactoring into more reusable design
@@ -132,4 +137,4 @@
 
  * initial release
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.25 2005-06-30 19:55:18 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.26 2005-07-01 10:02:07 merunka Exp $

@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jbase.h,v 1.2 2005-06-30 19:55:18 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jbase.h,v 1.3 2005-07-01 10:02:08 merunka Exp $
  *
  */
 
@@ -48,6 +48,7 @@
 #include <pcap.h>
 #include <glib.h>
 #include <errno.h>
+#include <sys/wait.h>
 #include "ether.h"
 #include "ethertype.h"
 #include "ip.h"
@@ -203,6 +204,8 @@ typedef struct __jbase_stream {
 
 #define JBASE_IS_IPV6(a)	((a) >= JBASE_PROTO_IPv6_BEGIN && (a) <= JBASE_PROTO_IPv6_END)
 #define JBASE_AF(a)		(JBASE_IS_IPV6(a) ? AF_INET6 : AF_INET)
+
+#define JBASE_AF_SIZE(a)	(a == AF_INET6 ? sizeof(struct in6_addr) : sizeof(struct in_addr))
 
 extern gchar  *JBASE_PROTOCOLS[];
 

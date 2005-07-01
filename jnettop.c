@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.33 2005-06-30 21:34:48 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.34 2005-07-01 10:02:08 merunka Exp $
  *
  */
 
@@ -45,12 +45,16 @@ jbase_stream	**displayStreams;
 int		displayStreamsCount;
 gchar 		line0FormatString[512], line1FormatString[512], line2FormatString[512];
 
+GCompareFunc	currentByBytesCompareFunc = (GCompareFunc) jprocessor_compare_ByBytesStat;
+GCompareFunc	currentByPacketsCompareFunc = (GCompareFunc) jprocessor_compare_ByPacketsStat;
+
 gboolean	onoffBitValues;
 gboolean	onoffPackets;
 
 #define		DISPLAYMODE_NORMAL		0
 #define		DISPLAYMODE_BPFFILTERS		1
 #define		DISPLAYMODE_HELP		2
+#define		DISPLAYMODE_SORTING		3
 
 int		displayMode = DISPLAYMODE_NORMAL;
 
@@ -121,9 +125,6 @@ void drawScreen() {
 
 		mvprintw(0, 0, "run XXX:XX:XX device XXXXXXXXXX pkt[f]ilter: XXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
 		mvprintw(1, 0, "[c]ntfilter: XXX [b]ps=XXXXXXX [l]ocal aggr.: XXXX [r]emote aggr.: XXXX   ");
-		if (jdevice_DevicesCount>1) {
-			mvprintw(2, 10, "[0]-[9] switch device");
-		}
 		mvprintw(0, activeColumns-1, ".");
 
 		{
@@ -140,7 +141,10 @@ void drawScreen() {
 	}
 	g_mutex_lock(statusMutex);
 	if (statusMessage == NULL) {
-		mvprintw(2, 0, "[q]uit [h]elp [s]orting [p]ackets");
+		mvprintw(2, 0, "[q]uit [h]elp [s]orting [p]ackets [.] pause ");
+		if (jdevice_DevicesCount>1) {
+			mvprintw(2, 44, "[0]-[9] switch device");
+		}
 	} else {
 		GTimeVal tv;
 		attron(A_BOLD);
@@ -325,6 +329,12 @@ void displayLoop() {
 			mvwprintw(listWindow, 2, 0, "I must write something here... :)");
 			mvwprintw(listWindow, 4, 0, "Press any key to return.");
 			break;
+		case DISPLAYMODE_SORTING:
+			mvwprintw(listWindow, 1, 0, "Select sorting column");
+			mvwprintw(listWindow, 3, 0, " [.] on/off");
+			mvwprintw(listWindow, 5, 0, " [t]xbps/txpps");
+			mvwprintw(listWindow, 6, 0, " [r]xbps/rxpps");
+			mvwprintw(listWindow, 7, 0, " total [b]ps/total pps");
 		}
 
 		g_mutex_unlock(displayStreamsMutex);
@@ -339,6 +349,12 @@ void displayLoop() {
 			switch (displayMode) {
 			case DISPLAYMODE_NORMAL:
 				switch (i) {
+					case '.':
+						drawStatus("Paused. Press any key to resume.");
+						while (getch() == ERR) {
+							g_usleep(100000);
+						}
+						break;
 					case 'q':
 					case 'Q':
 						drawStatus("Please wait, shutting down...");
@@ -352,14 +368,10 @@ void displayLoop() {
 						break;
 					case 'p':
 						onoffPackets = !onoffPackets;
-						jprocessor_SetSorting( jprocessor_Sorting, onoffPackets ? (GCompareFunc) jprocessor_compare_ByPacketsStat : (GCompareFunc) jprocessor_compare_ByBytesStat );
+						jprocessor_SetSorting( jprocessor_Sorting, onoffPackets ? currentByPacketsCompareFunc : currentByBytesCompareFunc );
 						break;
 					case 's':
-						jprocessor_SetSorting(!jprocessor_Sorting, NULL);
-						if (!jprocessor_Sorting)
-							drawStatus("Streams sorting suspended.");
-						else
-							drawStatus("Streams sorting resumed.");
+						displayMode = DISPLAYMODE_SORTING;
 						break;
 					case 'f':
 						displayMode = DISPLAYMODE_BPFFILTERS;
@@ -409,6 +421,39 @@ void displayLoop() {
 					jcapture_Kill();
 					displayMode = DISPLAYMODE_NORMAL;
 					break;
+				}
+				break;
+			case DISPLAYMODE_SORTING:
+				switch (i) {
+					case '.':
+						jprocessor_SetSorting(!jprocessor_Sorting, NULL);
+						if (!jprocessor_Sorting)
+							drawStatus("Streams sorting suspended.");
+						else
+							drawStatus("Streams sorting resumed.");
+						displayMode = DISPLAYMODE_NORMAL;
+						break;
+					case 't':
+						currentByBytesCompareFunc = (GCompareFunc) jprocessor_compare_ByTxBytesStat;
+						currentByPacketsCompareFunc = (GCompareFunc) jprocessor_compare_ByTxPacketsStat;
+						jprocessor_SetSorting(-1, onoffPackets ? currentByPacketsCompareFunc : currentByBytesCompareFunc );
+						displayMode = DISPLAYMODE_NORMAL;
+						break;
+					case 'r':
+						currentByBytesCompareFunc = (GCompareFunc) jprocessor_compare_ByRxBytesStat;
+						currentByPacketsCompareFunc = (GCompareFunc) jprocessor_compare_ByRxPacketsStat;
+						jprocessor_SetSorting(-1, onoffPackets ? currentByPacketsCompareFunc : currentByBytesCompareFunc );
+						displayMode = DISPLAYMODE_NORMAL;
+						break;
+					case 'b':
+						currentByBytesCompareFunc = (GCompareFunc) jprocessor_compare_ByBytesStat;
+						currentByPacketsCompareFunc = (GCompareFunc) jprocessor_compare_ByPacketsStat;
+						jprocessor_SetSorting(-1, onoffPackets ? currentByPacketsCompareFunc : currentByBytesCompareFunc );
+						displayMode = DISPLAYMODE_NORMAL;
+						break;
+					default:
+						drawStatus("Invalid key.");
+						break;
 				}
 				break;
 			case DISPLAYMODE_HELP:
@@ -593,13 +638,13 @@ void initializeDevices() {
 }
 
 int main(int argc, char ** argv) {
-	parseCommandLineAndConfig(argc, argv);
-
 	g_thread_init(NULL);
 
 	jcapture_Setup();
 	jprocessor_Setup();
 	jresolver_Setup();
+
+	parseCommandLineAndConfig(argc, argv);
 
 	jconfig_ConfigureModules();
 

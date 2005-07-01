@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jprocessor.h,v 1.3 2005-06-30 19:55:19 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jprocessor.h,v 1.4 2005-07-01 10:02:08 merunka Exp $
  *
  */
 
@@ -49,6 +49,10 @@ gboolean	jprocessor_Start();
 
 gint jprocessor_compare_ByPacketsStat(gconstpointer a, gconstpointer b);
 gint jprocessor_compare_ByBytesStat(gconstpointer a, gconstpointer b);
+gint jprocessor_compare_ByTxBytesStat(gconstpointer a, gconstpointer b);
+gint jprocessor_compare_ByRxBytesStat(gconstpointer a, gconstpointer b);
+gint jprocessor_compare_ByTxPacketsStat(gconstpointer a, gconstpointer b);
+gint jprocessor_compare_ByRxPacketsStat(gconstpointer a, gconstpointer b);
 
 extern jprocessor_stats	jprocessor_Stats;
 

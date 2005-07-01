@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jprocessor.c,v 1.3 2005-06-30 19:55:19 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jprocessor.c,v 1.4 2005-07-01 10:02:08 merunka Exp $
  *
  */
 
@@ -353,28 +353,39 @@ gboolean	jprocessor_Start() {
 	return TRUE;
 }
 
+#define COMPAREINT(x,y) ( ((x)<(y)) ? -1 : (((x)==(y)) ? 0 : 1) )
+#define COMPARESTREAMBY(x,y,prop) \
+	const jbase_stream	*astr = *(const jbase_stream **)x; \
+	const jbase_stream	*bstr = *(const jbase_stream **)y; \
+	return COMPAREINT(bstr->prop, astr->prop); \
+
 gint jprocessor_compare_ByPacketsStat(gconstpointer a, gconstpointer b) {
-	const jbase_stream	*astr = *(const jbase_stream **)a;
-	const jbase_stream	*bstr = *(const jbase_stream **)b;
-	if (astr->totalpps > bstr->totalpps)
-		return -1;
-	else if (astr->totalpps == bstr->totalpps)
-		return 0;
-	return 1;
+	COMPARESTREAMBY(a, b, totalpps);
 }
 
 gint jprocessor_compare_ByBytesStat(gconstpointer a, gconstpointer b) {
-	const jbase_stream	*astr = *(const jbase_stream **)a;
-	const jbase_stream	*bstr = *(const jbase_stream **)b;
-	if (astr->totalbps > bstr->totalbps)
-		return -1;
-	else if (astr->totalbps == bstr->totalbps)
-		return 0;
-	return 1;
+	COMPARESTREAMBY(a, b, totalbps);
+}
+
+gint jprocessor_compare_ByTxBytesStat(gconstpointer a, gconstpointer b) {
+	COMPARESTREAMBY(a, b, srcbps);
+}
+
+gint jprocessor_compare_ByRxBytesStat(gconstpointer a, gconstpointer b) {
+	COMPARESTREAMBY(a, b, dstbps);
+}
+
+gint jprocessor_compare_ByTxPacketsStat(gconstpointer a, gconstpointer b) {
+	COMPARESTREAMBY(a, b, srcpps);
+}
+
+gint jprocessor_compare_ByRxPacketsStat(gconstpointer a, gconstpointer b) {
+	COMPARESTREAMBY(a, b, dstpps);
 }
 
 void		jprocessor_SetSorting(gboolean onoff, GCompareFunc compareFunction) {
-	jprocessor_Sorting = onoff;
+	if (onoff != -1) 
+		jprocessor_Sorting = onoff;
 	if (compareFunction != NULL)
 		jprocessor_SortingFunction = compareFunction;
 }

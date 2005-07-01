@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jconfig.c,v 1.2 2005-06-30 21:35:48 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jconfig.c,v 1.3 2005-07-01 10:02:08 merunka Exp $
  *
  */
 
@@ -24,6 +24,7 @@
 #include "jutil.h"
 #include "jcapture.h"
 #include "jprocessor.h"
+#include "jresolver.h"
 #include "jconfig.h"
 
 jconfig_settings	jconfig_Settings;
@@ -44,6 +45,35 @@ static int parse_aggregation(GScanner *s) {
 		return AGG_UNKNOWN;
 	}
 	return jutil_ParseAggregation(s->value.v_identifier);
+}
+
+static int parse_resolvertype(GScanner *s) {
+	GTokenType tt;
+	tt = g_scanner_get_next_token(s);
+	if (tt != G_TOKEN_IDENTIFIER) {
+		return LOOKUPTYPE_UNKNOWN;
+	}
+	if (strcmp(s->value.v_identifier, "normal") && strcmp(s->value.v_identifier, "external")) {
+		return LOOKUPTYPE_UNKNOWN;
+	}
+	switch (s->value.v_identifier[0]) {
+		case 'n': return LOOKUPTYPE_NORMAL;
+		case 'e': return LOOKUPTYPE_EXTERNAL;
+	}
+	return LOOKUPTYPE_UNKNOWN;
+}
+
+static gboolean parse_ip(GScanner *s, jbase_mutableaddress *dest, int *af) {
+	GTokenType tt;
+	tt = g_scanner_get_next_token(s);
+	if (tt != G_TOKEN_STRING) {
+		return FALSE;
+	}
+	if (inet_aton(s->value.v_string, &dest->addr4)) {
+		*af = AF_INET;
+		return TRUE;
+	}
+	return FALSE;
 }
 
 gboolean jconfig_Setup() {
@@ -210,6 +240,42 @@ gboolean jconfig_ParseFile(char *configFileName) {
 					return FALSE;
 				}
 				JCONFIG_BPFFILTERS_SETSELECTEDFILTER(i);
+			}
+			continue;
+		}
+		if (!g_ascii_strcasecmp(s->value.v_identifier, "resolve")) {
+			int af1, af2;
+			jbase_mutableaddress mask;
+			jbase_mutableaddress value;
+			int resolvertype;
+			if (!parse_ip(s, &value, &af1)) {
+				fprintf(stderr, "Parse error on line %d: expecting ip address.\n", line);
+				return FALSE;
+			}
+			if (!parse_ip(s, &mask, &af2)) {
+				fprintf(stderr, "Parse error on line %d: expecting ip mask.\n", line);
+				return FALSE;
+			}
+			if (af1 != af2) {
+				fprintf(stderr, "Parse error on line %d: ip mask and ip address must be from the same family.\n", line);
+				return FALSE;
+			}
+			if ((resolvertype = parse_resolvertype(s)) == LOOKUPTYPE_UNKNOWN) {
+				fprintf(stderr, "Parse error on line %d: expecint resolver type.\n", line);
+				return FALSE;
+			}
+			switch (resolvertype) {
+				case LOOKUPTYPE_NORMAL:
+					jresolver_AddNormalLookup(af1, &mask, &value);
+					break;
+				case LOOKUPTYPE_EXTERNAL:
+					tt = g_scanner_get_next_token(s);
+					if (tt != G_TOKEN_STRING) {
+						fprintf(stderr, "Parse error on line %d: expecting external resolver path.\n", line);
+						return FALSE;
+					}
+					jresolver_AddExternalLookupScript(af1, &mask, &value, g_strdup(s->value.v_string));
+					break;
 			}
 			continue;
 		}
