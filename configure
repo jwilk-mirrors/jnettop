@@ -5112,6 +5112,9 @@ fi;
          gmodule)
              pkg_config_args="$pkg_config_args gmodule-2.0"
          ;;
+         gmodule-no-export)
+             pkg_config_args="$pkg_config_args gmodule-no-export-2.0"
+         ;;
          gobject)
              pkg_config_args="$pkg_config_args gobject-2.0"
          ;;
