@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.in,v 1.33 2005-07-01 12:52:32 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.in,v 1.34 2006-04-08 11:48:33 merunka Exp $
 SHELL = @SHELL@
 
 srcdir = @srcdir@
@@ -95,7 +95,7 @@ EXTRA_DIST = jnettop.spec .jnettop $(man_MANS)
 bin_PROGRAMS = jnettop
 
 dist_pkgdata_SCRIPTS = jnettop-lookup-nmb
-jnettop_SOURCES = jnettop.c jconfig.c jconfig.h jutil.c jutil.h jresolver.c jresolver.h jprocessor.c jprocessor.h jcapture.c jcapture.h jdevice.c jdevice.h jbase.c jbase.h jresolv.c jresolv.h jfilter.c jfilter.h include/ether.h include/ethertype.h include/ip.h include/tcp.h include/udp.h include/sll.h include/icmp.h include/icmp6.h
+jnettop_SOURCES = jnettop.c jconfig.c jconfig.h jutil.c jutil.h jresolver.c jresolver.h jprocessor.c jprocessor.h jcapture.c jcapture.h jdevice.c jdevice.h jbase.c jbase.h jresolv.c jtxtdisplay.c jtxtdisplay.h jcursesdisplay.c jcursesdisplay.h jresolv.h jfilter.c jfilter.h include/ether.h include/ethertype.h include/ip.h include/tcp.h include/udp.h include/sll.h include/icmp.h include/icmp6.h include/ieee8021q.h
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -107,6 +107,7 @@ PROGRAMS = $(bin_PROGRAMS)
 am_jnettop_OBJECTS = jnettop.$(OBJEXT) jconfig.$(OBJEXT) jutil.$(OBJEXT) \
 	jresolver.$(OBJEXT) jprocessor.$(OBJEXT) jcapture.$(OBJEXT) \
 	jdevice.$(OBJEXT) jbase.$(OBJEXT) jresolv.$(OBJEXT) \
+	jtxtdisplay.$(OBJEXT) jcursesdisplay.$(OBJEXT) \
 	jfilter.$(OBJEXT)
 jnettop_OBJECTS = $(am_jnettop_OBJECTS)
 jnettop_LDADD = $(LDADD)
@@ -123,10 +124,12 @@ LIBS = @LIBS@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
 @AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/jbase.Po ./$(DEPDIR)/jcapture.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/jconfig.Po ./$(DEPDIR)/jdevice.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/jfilter.Po ./$(DEPDIR)/jnettop.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/jprocessor.Po ./$(DEPDIR)/jresolv.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/jresolver.Po ./$(DEPDIR)/jutil.Po
+@AMDEP_TRUE@	./$(DEPDIR)/jconfig.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/jcursesdisplay.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/jdevice.Po ./$(DEPDIR)/jfilter.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/jnettop.Po ./$(DEPDIR)/jprocessor.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/jresolv.Po ./$(DEPDIR)/jresolver.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/jtxtdisplay.Po ./$(DEPDIR)/jutil.Po
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
@@ -138,7 +141,8 @@ NROFF = nroff
 MANS = $(man_MANS)
 DIST_COMMON = README $(dist_pkgdata_SCRIPTS) AUTHORS COPYING ChangeLog \
 	INSTALL Makefile.am Makefile.in NEWS acinclude.m4 aclocal.m4 \
-	configure configure.ac depcomp install-sh missing mkinstalldirs
+	config.h.in configure configure.ac depcomp install-sh missing \
+	mkinstalldirs
 SOURCES = $(jnettop_SOURCES)
 
 all: config.h
@@ -236,12 +240,14 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jbase.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jcapture.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jconfig.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jcursesdisplay.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jdevice.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jfilter.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jnettop.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jprocessor.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jresolv.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jresolver.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jtxtdisplay.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jutil.Po@am__quote@
 
 distclean-depend:

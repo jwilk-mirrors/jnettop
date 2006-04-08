@@ -1,8 +1,8 @@
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.spec,v 1.14 2005-07-01 10:02:08 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.spec,v 1.15 2006-04-08 11:48:34 merunka Exp $
 
 Summary: Network traffic tracker
 Name: jnettop
-Version: 0.11.0
+Version: 0.12.0
 Release: 1
 Group: Network/Monitoring
 License: GNU
@@ -40,6 +40,9 @@ rm -r $RPM_BUILD_ROOT
 %doc AUTHORS ChangeLog COPYING INSTALL NEWS README .jnettop
 
 %changelog
+* Fri Mar 31 2006 Jakub Skopal <j@kubs.cz> 0.12.0-1
+- transition to release 0.12.0, see ChangeLog
+
 * Thu Jul 1 2005 Jakub Skopal <j@kubs.cz> 0.11.0-2
 - added jnettop-lookup-nmb
 

@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jbase.h,v 1.3 2005-07-01 10:02:08 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jbase.h,v 1.4 2006-04-08 11:48:34 merunka Exp $
  *
  */
 
@@ -57,6 +57,7 @@
 #include "icmp.h"
 #include "icmp6.h"
 #include "sll.h"
+#include "ieee8021q.h"
 #include <net/if.h>
 #include <netinet/if_ether.h>
 #if HAVE_NCURSES_H
@@ -182,6 +183,15 @@ typedef struct __jbase_stream {
 		memset((stream)->filterDataString, 0, FILTER_DATA_STRING_LENGTH); \
 		g_snprintf((stream)->filterDataString, FILTER_DATA_STRING_LENGTH, format, arg0, arg1); \
 	}
+
+typedef struct __jbase_display {
+	void		(*setup)();
+	void		(*prerun)();
+	gboolean	(*run)();
+	void		(*shutdown)();
+	void		(*drawstatus)(const gchar *msg);
+	int		(*processargument)(const gchar **arg, int cnt);
+} jbase_display;
 
 #define	JBASE_PROTO_UNKNOWN	0
 #define	JBASE_PROTO_IP		1

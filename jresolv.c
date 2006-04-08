@@ -1,6 +1,6 @@
 /*
  *    jnettop, network online traffic visualiser
- *    Copyright (C) 2002-2005 Jakub Skopal
+ *    Copyright (C) 2002-2006 Jakub Skopal
  *
  *    This program is free software; you can redistribute it and/or modify
  *    it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.13 2005-06-30 19:55:19 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.14 2006-04-08 11:48:34 merunka Exp $
  * 
  */
 
@@ -192,6 +192,41 @@ static gboolean resolveStreamIPn(const jbase_packet *packet, const gchar  *data,
 	return FALSE;
 }
 
+// forward declaration
+static gboolean resolveStreamByEtherType(const gchar *data, guint len, jbase_stream *stream, jbase_payload_info *payloads, guint16 proto);
+
+static gboolean	resolveStream8021Q(const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
+	if (len<NTOP_8021Q_HDRLEN) {
+		return FALSE;
+	} else
+	{
+		guint16 proto = ntohs(((struct ntop_8021Q_header*)data)->protocol_type);
+		data += NTOP_8021Q_HDRLEN;
+		len -= NTOP_8021Q_HDRLEN;
+		return resolveStreamByEtherType(data, len, stream, payloads, proto);
+	}
+}
+
+static gboolean resolveStreamByEtherType(const gchar *data, guint len, jbase_stream *stream, jbase_payload_info *payloads, guint16 proto) {
+	switch (proto) {
+	case ETHERTYPE_IP:
+		return resolveStreamIP(data, len, stream, payloads);
+		break;
+	case ETHERTYPE_ARP:
+		return resolveStreamARP(data, len, stream, payloads);
+		break;
+	case ETHERTYPE_IPV6:
+		return resolveStreamIP6(data, len, stream, payloads);
+		break;
+	case NTOP_ETHERTYPE_802_1Q:
+		return resolveStream8021Q(data, len, stream, payloads);
+		break;
+	default:
+		debug("Unknown ETHERNET protocol: %d\n", proto);
+		return FALSE;
+	}
+}
+
 static gboolean resolveStreamEther(const jbase_packet *packet, const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
 	if (len<NTOP_ETHER_HDRLEN) {
 		return FALSE;
@@ -209,22 +244,11 @@ static gboolean resolveStreamEther(const jbase_packet *packet, const gchar  *dat
 		stream->proto = JBASE_PROTO_ETHER;
 		payloads[JBASE_PROTO_ETHER].data = data;
 		payloads[JBASE_PROTO_ETHER].len = len;
-		switch (proto) {
-		case ETHERTYPE_IP:
-			return resolveStreamIP(data, len, stream, payloads);
-			break;
-		case ETHERTYPE_ARP:
-			return resolveStreamARP(data, len, stream, payloads);
-			break;
-		case ETHERTYPE_IPV6:
-			return resolveStreamIP6(data, len, stream, payloads);
-		default:
-			debug("Unknown ETHERNET protocol: %d\n", proto);
-			return FALSE;
-		}
+		return resolveStreamByEtherType(data, len, stream, payloads, proto);
 	}
 	// unreachable
 }
+
 
 #ifdef linux
 static gboolean resolveStreamSLL(const jbase_packet *packet, const gchar  *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {

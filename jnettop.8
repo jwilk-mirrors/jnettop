@@ -59,6 +59,9 @@ capture packets on specified interface
 .B \-\-local-aggr [none|host|port]
 set local aggregation to specified value
 .TP
+.B \-n, \-\-no-resolver
+disable resolving of ip addresses
+.TP
 .B \-p, \-\-promiscuous
 enables promiscuous mode on the sniffed interface
 .TP
@@ -72,9 +75,6 @@ selects one of the rules defined in .jnettop configuration file (by it's name)
 allows for specification of custom filtering rule. this allows for
 .BR tcpdump(1)
 style syntax. don't forget to enclolse the filter into quotes when running from a shell.
-.TP
-.\".SH SEE ALSO
-.\".BR bar (1),
 .SH CONFIGURATION
 Program looks for settings in the file specified by parameter \fB-f\fP, which defaults to ~/.jnettop. Configuration file is
 an ordinary text file with keywords and their arguments. You HAVE to enclose arguments into double quotes. Available keywords
@@ -94,11 +94,38 @@ The \fBlocal_aggregation\fP keyword specifies initial active local aggregation. 
 local_aggregation host
 .RE
 .TP
+\fBpromisc [on|off]\fR
+The \fBpromisc\fP keyword specifies, whether jnettop captures packets in promiscuous mode. Example:
+.RS
+.PP
+promisc on
+.RE
+.TP
 \fBremote_aggregation [none|host|port]\fR
 The \fBremote_aggregation\fP keyword specifies initial active remote aggregation. Valid values are \fBnone\fP, \fBhost\fP and \fBport\fP. Example:
 .RS
 .PP
 remote_aggregation port
+.RE
+.TP
+\fBresolve [on|off]\fR
+The \fBresolve\fP keyword specifies, whether resolving is performed on the IP addresses or not.
+.RS
+.PP
+resolve off
+.RE
+.TP
+\fBresolve_rule "<network address>" "<network mask>" [normal|external] (<arguments> ...)\fR
+The \fBresolve_rule\fP keyword adds one resolver into list of resolvers for specified address. When resolving, jnettop examines all the rules in the
+order how they were specified in configuration file. If the network address matches specified range, declared resolver is used. Resolver can be
+\fBnormal\fP, which means the standard DNS lookup or \fBexternal\fP, which executes specified external program to perform resolving. This can
+be used with bundled jnettop-lookup-nmb script, which looks up IP addresses using nmblookup(1) tool. If a tool returns empty string or DNS
+is not found, next rule is examined. If jnettop runs out of rules, than the standard DNS lookup is executed.
+.RS
+.PP
+resolve_rule "192.168.0.0" "255.255.255.0" normal
+.br
+resolve_rule "192.168.0.0" "255.255.255.0" external "/usr/share/jnettop/jnettop-lookup-nbm"
 .RE
 .TP
 \fBrule "<rule_name>" "<rule_definition>"\fR
