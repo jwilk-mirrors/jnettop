@@ -1,3 +1,10 @@
+2006-04-11	Jakub Skopal <j@kubs.cz>
+ * added support for UIA output (protocol and sources provided by Justin Killen)
+ * added support for conditional compilation of ncurses and uia output
+ * added optional support for logging into syslog
+ * added support for explicit list of local networks (stub implementation
+   by Justin Killen)
+
 2006-03-31	Jakub Skopal <j@kubs.cz>
  * factored out curses displaying
  * added text output, formatting
@@ -145,4 +152,4 @@
 
  * initial release
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.28 2006-04-08 11:48:33 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.29 2006-04-11 15:21:05 merunka Exp $

@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jutil.c,v 1.5 2005-07-01 11:25:32 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jutil.c,v 1.6 2006-04-11 15:21:06 merunka Exp $
  *
  */
 
@@ -97,6 +97,7 @@ void memand(char *buf1, const char *buf2, int length) {
 }
 
 gboolean jutil_String2Address(const char *address, jbase_mutableaddress *dest, int *af) {
+	memset(dest, '\0', sizeof(jbase_mutableaddress));
 #ifdef INET_ATON
 	if (inet_aton(address, &dest->addr4)) {
 		*af = AF_INET;
@@ -106,10 +107,33 @@ gboolean jutil_String2Address(const char *address, jbase_mutableaddress *dest, i
 #else
 	unsigned long int tmpaddr;
 	tmpaddr = inet_addr(address);
-	if (tmpaddr == -1)
+	if (tmpaddr == -1 && strcmp(address, "255.255.255.255"))
 		return FALSE;
 	memcpy(&dest->addr4, &tmpaddr, sizeof(struct in_addr));
 	*af = AF_INET;
 	return TRUE;
 #endif
 }
+
+void jutil_formatNumber(guint32 n, gboolean onoffPackets, gchar *buf, int len) {
+	gchar suffixes[] = {'b','k','m','g','t'};
+	gchar fmt[64];
+	int  mag = 0;
+	int  ipart,fpart = 0;
+	gdouble f = (gdouble)n;
+	while (mag<4 && f>1000.0) {
+		mag ++;
+		f /= 1024.0;
+	}
+	sprintf(fmt, "%.0f", f);
+	ipart = strlen(fmt);
+	while (ipart+1+fpart+2 < len && mag > 0)
+		fpart ++;
+	if (ipart+1+fpart+2 > len) {
+		sprintf(buf, "ERR");
+		return;
+	}
+	sprintf(fmt, "%%%d.%df%c", ipart, fpart, !mag && onoffPackets ? 'p' : suffixes[mag]);
+	sprintf(buf, fmt, f);
+}
+

@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jcapture.c,v 1.2 2005-06-30 19:55:18 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jcapture.c,v 1.3 2006-04-11 15:21:05 merunka Exp $
  *
  */
 
@@ -68,7 +68,7 @@ void jcapture_SetPromisc(gboolean value) {
 
 gboolean jcapture_SetDevice(const jbase_device *device) {
 	if (jcapture_IsRunning) {
-		debug("Attempt to set jcapture device while jcapture is running");
+		debug(LOG_ERR, "Attempt to set jcapture device while jcapture is running");
 		return FALSE;
 	}
 	jcapture_ActiveDevice = device;
@@ -77,7 +77,7 @@ gboolean jcapture_SetDevice(const jbase_device *device) {
 
 gboolean jcapture_SetBpfFilterText(const char *filterText) {
 	if (jcapture_IsRunning) {
-		debug("Attempt to set jcapture filter while jcapture is running");
+		debug(LOG_ERR, "Attempt to set jcapture filter while jcapture is running");
 		return FALSE;
 	}
 	jcapture_ActiveBpfFilterText = filterText;
@@ -163,7 +163,7 @@ static gpointer snifferThreadFunc(gpointer data) {
 #endif
 			if (jcapture_ActiveBpfFilterText) {
 				isFilterUsed = FALSE;
-				debug("Filter: %s\n", jcapture_ActiveBpfFilterText);
+				debug(LOG_DEBUG, "Filter: %s\n", jcapture_ActiveBpfFilterText);
 				if (pcap_compile(handle, &activeBpfFilterProgram, (char *)jcapture_ActiveBpfFilterText, 0, 0xFFFFFFFF) == -1) {
 					char BUF[PCAP_ERRBUF_SIZE + 128];
 					snprintf(BUF, PCAP_ERRBUF_SIZE + 128, "Filter not applied. Error while compiling: %s", pcap_geterr(handle));
@@ -223,7 +223,7 @@ gboolean jcapture_Start() {
 gboolean jcapture_Kill() {
 	gpointer ptr;
 	if (!jcapture_IsRunning || isEnding) {
-		debug("Attempt to kill jcapture which is not running.");
+		debug(LOG_DEBUG, "Attempt to kill jcapture which is not running.");
 		return FALSE;
 	}
 	isEnding = TRUE;

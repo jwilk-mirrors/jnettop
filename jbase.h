@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jbase.h,v 1.4 2006-04-08 11:48:34 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jbase.h,v 1.5 2006-04-11 15:21:05 merunka Exp $
  *
  */
 
@@ -60,17 +60,26 @@
 #include "ieee8021q.h"
 #include <net/if.h>
 #include <netinet/if_ether.h>
-#if HAVE_NCURSES_H
-# include <ncurses.h>
-#elif HAVE_NCURSES_NCURSES_H
-# include <ncurses/ncurses.h>
-#else
-# error "No ncurses.h file found by configure."
+#if WITH_NCURSES
+# if HAVE_NCURSES_H
+#  include <ncurses.h>
+#  define SUPPORT_NCURSES
+# elif HAVE_NCURSES_NCURSES_H
+#  include <ncurses/ncurses.h>
+#  define SUPPORT_NCURSES
+# endif
 #endif
 #include <time.h>
 #include <netdb.h>
 #include <sys/ioctl.h>
 #include <netinet/ip6.h>
+#include <ctype.h>
+#if WITH_SYSLOG
+# if HAVE_SYSLOG_H
+#  include <syslog.h>
+#  define SUPPORT_SYSLOG
+# endif
+#endif
 
 #define HISTORY_LENGTH			5
 #define FREEPACKETSTACK_PEEK		50
@@ -97,7 +106,7 @@ extern char	pcap_errbuf[PCAP_ERRBUF_SIZE];
 extern volatile int	threadCount;
 
 void	jbase_cb_DrawStatus(const char *statusMesage);
-void	debug(const char *format, ...);
+void	debug(int priority, const char *format, ...);
 
 typedef union __jbase_mutableaddress {
 	struct in_addr addr4;
@@ -185,6 +194,8 @@ typedef struct __jbase_stream {
 	}
 
 typedef struct __jbase_display {
+	gboolean	supported;
+	gboolean	(*presetup)();
 	void		(*setup)();
 	void		(*prerun)();
 	gboolean	(*run)();
@@ -192,6 +203,12 @@ typedef struct __jbase_display {
 	void		(*drawstatus)(const gchar *msg);
 	int		(*processargument)(const gchar **arg, int cnt);
 } jbase_display;
+
+typedef struct _jbase_network_mask_list {
+	jbase_mutableaddress	network;
+	jbase_mutableaddress	netmask;
+	struct _jbase_network_mask_list * next;
+} jbase_network_mask_list;
 
 #define	JBASE_PROTO_UNKNOWN	0
 #define	JBASE_PROTO_IP		1
@@ -226,5 +243,18 @@ extern gchar  *JBASE_PROTOCOLS[];
 
 extern gchar *JBASE_PROTOCOLS[];
 extern gchar *JBASE_AGGREGATION[];
+
+#ifndef LOG_NOTICE
+#define	LOG_NOTICE	5	/* normal but significant condition */
+#endif
+#ifndef LOG_WARNING
+#define LOG_WARNING     4       /* warning conditions */
+#endif
+#ifndef LOG_ERR
+#define LOG_ERR         3       /* error conditions */
+#endif
+#ifndef LOG_DEBUG
+#define LOG_DEBUG       7       /* debug-level messages */
+#endif
 
 #endif

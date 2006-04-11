@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jtxtdisplay.c,v 1.1 2006-04-08 11:48:34 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jtxtdisplay.c,v 1.2 2006-04-11 15:21:05 merunka Exp $
  *
  */
 
@@ -25,7 +25,7 @@
 #include "jprocessor.h"
 #include "jconfig.h"
 #include "jutil.h"
-#include "jcursesdisplay.h"
+#include "jtxtdisplay.h"
 
 int secondsToRun;
 GPtrArray *lastStreamsArray;
@@ -44,6 +44,10 @@ static void displayLoop() {
 	while (jcapture_IsRunning && secondsToRun--) {
 		g_usleep(1000000);
 	}
+}
+
+static gboolean jtxtdisplay_PreSetup() {
+	return TRUE;
 }
 
 static void jtxtdisplay_Setup() {
@@ -165,6 +169,8 @@ static int jtxtdisplay_ProcessArgument(const gchar **arg, int argc) {
 }
 
 jbase_display	jtxtdisplay_Functions = {
+	TRUE,
+	jtxtdisplay_PreSetup,
 	jtxtdisplay_Setup,
 	jtxtdisplay_PreRun,
 	jtxtdisplay_Run,

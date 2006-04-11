@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jcursesdisplay.c,v 1.1 2006-04-08 11:48:34 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jcursesdisplay.c,v 1.2 2006-04-11 15:21:05 merunka Exp $
  *
  */
 
@@ -26,6 +26,8 @@
 #include "jconfig.h"
 #include "jutil.h"
 #include "jcursesdisplay.h"
+
+#ifdef SUPPORT_NCURSES
 
 gboolean	recycleJnettop;
 
@@ -54,28 +56,6 @@ int	activeLines=1, activeColumns=1;
 
 GCompareFunc	currentByBytesCompareFunc = (GCompareFunc) jprocessor_compare_ByBytesStat;
 GCompareFunc	currentByPacketsCompareFunc = (GCompareFunc) jprocessor_compare_ByPacketsStat;
-
-static void formatNumber(guint32 n, gchar *buf, int len) {
-	gchar suffixes[] = {'b','k','m','g','t'};
-	gchar fmt[64];
-	int  mag = 0;
-	int  ipart,fpart = 0;
-	gdouble f = (gdouble)n;
-	while (mag<4 && f>1000.0) {
-		mag ++;
-		f /= 1024.0;
-	}
-	sprintf(fmt, "%.0f", f);
-	ipart = strlen(fmt);
-	while (ipart+1+fpart+2 < len && mag > 0)
-		fpart ++;
-	if (ipart+1+fpart+2 > len) {
-		sprintf(buf, "ERR");
-		return;
-	}
-	sprintf(fmt, "%%%d.%df%c", ipart, fpart, !mag && onoffPackets ? 'p' : suffixes[mag]);
-	sprintf(buf, fmt, f);
-}
 
 static void drawStatus(const gchar *msg) {
 	g_mutex_lock(statusMutex);
@@ -163,17 +143,17 @@ static void drawHeader() {
 
 	attroff(A_BOLD);
 
-	formatNumber(onoffPackets?jprocessor_Stats.totalPPS:(onoffBitValues?8:1)*jprocessor_Stats.totalBPS, bps, 6);
+	jutil_formatNumber(onoffPackets?jprocessor_Stats.totalPPS:(onoffBitValues?8:1)*jprocessor_Stats.totalBPS, onoffPackets, bps, 6);
 	g_strlcat(bps, "/s", sizeof(bps));
-	formatNumber(onoffPackets?jprocessor_Stats.totalSrcPPS:(onoffBitValues?8:1)*jprocessor_Stats.totalSrcBPS, srcbps, 6);
+	jutil_formatNumber(onoffPackets?jprocessor_Stats.totalSrcPPS:(onoffBitValues?8:1)*jprocessor_Stats.totalSrcBPS, onoffPackets, srcbps, 6);
 	g_strlcat(srcbps, "/s", sizeof(srcbps));
-	formatNumber(onoffPackets?jprocessor_Stats.totalDstPPS:(onoffBitValues?8:1)*jprocessor_Stats.totalDstBPS, dstbps, 6);
+	jutil_formatNumber(onoffPackets?jprocessor_Stats.totalDstPPS:(onoffBitValues?8:1)*jprocessor_Stats.totalDstBPS, onoffPackets, dstbps, 6);
 	g_strlcat(dstbps, "/s", sizeof(dstbps));
 	mvprintw(activeLines-2, 0, line0FormatString, "TOTAL", srcbps, dstbps, bps);
 
-	formatNumber(onoffPackets?jprocessor_Stats.totalPackets:(onoffBitValues?8:1)*jprocessor_Stats.totalBytes, total, 6);
-	formatNumber(onoffPackets?jprocessor_Stats.totalSrcPackets:(onoffBitValues?8:1)*jprocessor_Stats.totalSrcBytes, totalsrc, 6);
-	formatNumber(onoffPackets?jprocessor_Stats.totalDstPackets:(onoffBitValues?8:1)*jprocessor_Stats.totalDstBytes, totaldst, 6);
+	jutil_formatNumber(onoffPackets?jprocessor_Stats.totalPackets:(onoffBitValues?8:1)*jprocessor_Stats.totalBytes, onoffPackets, total, 6);
+	jutil_formatNumber(onoffPackets?jprocessor_Stats.totalSrcPackets:(onoffBitValues?8:1)*jprocessor_Stats.totalSrcBytes, onoffPackets, totalsrc, 6);
+	jutil_formatNumber(onoffPackets?jprocessor_Stats.totalDstPackets:(onoffBitValues?8:1)*jprocessor_Stats.totalDstBytes, onoffPackets, totaldst, 6);
 	mvprintw(activeLines-1, 0, line1FormatString, "", "", "", "", "", totalsrc, totaldst, total);
 
 	mvchgat(activeLines-2, 0, activeColumns-25, A_BOLD, 0, NULL);
@@ -234,17 +214,17 @@ static void	doDisplayStreams() {
 		const gchar *psrcaddr, *pdstaddr;
 		jbase_stream *s = displayStreams[i];
 		tmp = onoffPackets ? s->totalpps : (onoffBitValues?8:1)*s->totalbps;
-		formatNumber(tmp, bps, 6);
+		jutil_formatNumber(tmp, onoffPackets, bps, 6);
 		g_strlcat(bps, "/s", sizeof(bps));
 		tmp = onoffPackets ? s->srcpps : (onoffBitValues?8:1)*s->srcbps;
-		formatNumber(tmp, srcbps, 6);
+		jutil_formatNumber(tmp, onoffPackets, srcbps, 6);
 		g_strlcat(srcbps, "/s", sizeof(srcbps));
 		tmp = onoffPackets ? s->dstpps : (onoffBitValues?8:1)*s->dstbps;
-		formatNumber(tmp, dstbps, 6);
+		jutil_formatNumber(tmp, onoffPackets, dstbps, 6);
 		g_strlcat(dstbps, "/s", sizeof(dstbps));
-		formatNumber(onoffPackets ? s->totalpackets : s->totalbytes, total, 6);
-		formatNumber(onoffPackets ? s->srcpackets : s->srcbytes, totalsrc, 6);
-		formatNumber(onoffPackets ? s->dstpackets : s->dstbytes, totaldst, 6);
+		jutil_formatNumber(onoffPackets ? s->totalpackets : s->totalbytes, onoffPackets, total, 6);
+		jutil_formatNumber(onoffPackets ? s->srcpackets : s->srcbytes, onoffPackets, totalsrc, 6);
+		jutil_formatNumber(onoffPackets ? s->dstpackets : s->dstbytes, onoffPackets, totaldst, 6);
 		jutil_Address2String(JBASE_AF(s->proto), &s->src, srcaddr, INET6_ADDRSTRLEN);
 		if (s->srcresolv == NULL || s->srcresolv->name == NULL) {
 			psrcaddr = srcaddr;
@@ -444,6 +424,10 @@ static void displayLoop() {
 	}
 }
 
+static gboolean	jcursesdisplay_PreSetup() {
+	return TRUE;
+}
+
 static void	jcursesdisplay_Setup() {
 	displayStreamsMutex = g_mutex_new();
 	statusMutex = g_mutex_new();
@@ -501,6 +485,8 @@ static int	jcursesdisplay_ProcessArgument(const gchar **arg, int argc) {
 }
 
 jbase_display	jcursesdisplay_Functions = {
+	TRUE,
+	jcursesdisplay_PreSetup,
 	jcursesdisplay_Setup,
 	jcursesdisplay_PreRun,
 	jcursesdisplay_Run,
@@ -509,3 +495,8 @@ jbase_display	jcursesdisplay_Functions = {
 	jcursesdisplay_ProcessArgument
 };
 
+#else
+
+jbase_display	jcursesdisplay_Functions = { FALSE };
+
+#endif

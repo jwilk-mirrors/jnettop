@@ -1,5 +1,8 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* UIA will be compiled in */
+#undef ENABLE_UIA
+
 /* Define to 1 if you have the <arpa/inet.h> header file. */
 #undef HAVE_ARPA_INET_H
 
@@ -96,6 +99,12 @@
 /* Define to 1 if you have the <string.h> header file. */
 #undef HAVE_STRING_H
 
+/* Define to 1 if you have the `syslog' function. */
+#undef HAVE_SYSLOG
+
+/* Define to 1 if you have the <syslog.h> header file. */
+#undef HAVE_SYSLOG_H
+
 /* Define to 1 if you have the <sys/socket.h> header file. */
 #undef HAVE_SYS_SOCKET_H
 
@@ -143,6 +152,12 @@
 
 /* Version number of package */
 #undef VERSION
+
+/* NCURSES will be supported (if available) */
+#undef WITH_NCURSES
+
+/* syslog will be supported (if available) */
+#undef WITH_SYSLOG
 
 /* Define to empty if `const' does not conform to ANSI C. */
 #undef const

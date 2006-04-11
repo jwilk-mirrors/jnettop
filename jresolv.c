@@ -16,11 +16,12 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.14 2006-04-08 11:48:34 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.15 2006-04-11 15:21:05 merunka Exp $
  * 
  */
 
 #include "jbase.h"
+#include "jconfig.h"
 #include <netinet/ip6.h>
 
 static gboolean resolveStreamTCP(const gchar *data, guint len, jbase_stream *stream, jbase_payload_info *payloads) {
@@ -222,7 +223,7 @@ static gboolean resolveStreamByEtherType(const gchar *data, guint len, jbase_str
 		return resolveStream8021Q(data, len, stream, payloads);
 		break;
 	default:
-		debug("Unknown ETHERNET protocol: %d\n", proto);
+		debug(LOG_DEBUG, "Unknown ETHERNET protocol: %d\n", proto);
 		return FALSE;
 	}
 }
@@ -282,7 +283,7 @@ static gboolean resolveStreamSLL(const jbase_packet *packet, const gchar  *data,
 			return resolveStreamIP(data, len, stream, payloads);
 			break;
 		default:
-			debug("Unknown SLL protocol: %d\n", proto);
+			debug(LOG_DEBUG, "Unknown SLL protocol: %d\n", proto);
 			return FALSE;
 		}
 	}
@@ -320,19 +321,26 @@ gboolean jresolv_ResolveStream(const jbase_packet *packet, jbase_stream *stream,
 #endif
 #endif
 	default:
-		debug("Unknown DataLink encapsulation: %d\n", packet->dataLink);
+		debug(LOG_DEBUG, "Unknown DataLink encapsulation: %d\n", packet->dataLink);
 		return FALSE;
 		break;
 	}
+
 	cmpres = 0;
-	if (stream->rxtx != RXTX_UNKNOWN) {
+
+	int srcIndex = jconfig_FindMatchingLocalNetworkIndex(&stream->src);
+	int dstIndex = jconfig_FindMatchingLocalNetworkIndex(&stream->dst);
+	cmpres = srcIndex - dstIndex;
+	if (cmpres == 0) {
 		cmpres = stream->rxtx;
-	} else {
-		cmpres = memcmp(&stream->src, &stream->dst, sizeof(jbase_mutableaddress));
-		if (cmpres == 0) {
-			cmpres = stream->srcport > stream->dstport;
-		}
 	}
+	if (cmpres == 0) {
+		cmpres = memcmp(&stream->src, &stream->dst, sizeof(jbase_mutableaddress));
+	}
+	if (cmpres == 0) {
+		cmpres = stream->srcport > stream->dstport;
+	}
+
 	if (cmpres > 0) {
 		jbase_mutableaddress addr;
 		gushort		port;
@@ -344,6 +352,7 @@ gboolean jresolv_ResolveStream(const jbase_packet *packet, jbase_stream *stream,
 		stream->dstport = port;
 		stream->direction = !stream->direction;
 	}
+
 	return result;
 }
 

@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.36 2006-04-08 11:48:34 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.37 2006-04-11 15:21:05 merunka Exp $
  *
  */
 
@@ -31,19 +31,33 @@
 #include "jconfig.h"
 #include "jcursesdisplay.h"
 #include "jtxtdisplay.h"
+#include "juiadisplay.h"
 
+#define			DEBUGOUT_NONE	0
+#define			DEBUGOUT_SYSLOG	1
+#define			DEBUGOUT_FILE	2
+int			debugOut = DEBUGOUT_NONE;
 FILE *			debugFile = NULL;
 
 volatile int		threadCount;
 
 jbase_display *		currentDisplay;
 
-void debug(const char *format, ...) {
-	if (debugFile) {
-		va_list ap;
-		va_start(ap, format);
-		vfprintf(debugFile, format, ap);
-		va_end(ap);
+void debug(int priority, const char *format, ...) {
+	static char buffer[32768];
+	va_list ap;
+	va_start(ap, format);
+	vsprintf(buffer, format, ap);
+	va_end(ap);
+
+	switch (debugOut) {
+		case DEBUGOUT_FILE:
+			fprintf(debugFile, "%d - %d, %s\n", getpid(), priority, buffer);
+			break;
+#ifdef SUPPORT_SYSLOG
+		case DEBUGOUT_SYSLOG:
+			syslog(priority, "%d - %d, %s\n", getpid(), priority, buffer);
+#endif
 	}
 }
 
@@ -70,7 +84,7 @@ void parseCommandLineAndConfig(int argc, char ** argv) {
 				"    -v, --version          display version information\n\n"
 				"    -b, --bit-units        show BPS in bits per second, not bytes per second\n"
 				"    -c, --content-filter   disable content filtering\n"
-				"    -d, --debug filename   write debug information into file\n"
+				"    -d, --debug filename   write debug information into file (or syslog)\n"
 				"    --display type         type of display (curses, text)\n"
 				"    -f, --config-file name reads configuration from file. defaults to ~/.jnettop\n"
 				"    --format format        list of fields to list in text output\n"
@@ -112,10 +126,12 @@ void parseCommandLineAndConfig(int argc, char ** argv) {
 				exit(255);
 			}
 			++a;
-			if (!strcmp(argv[a], "curses")) {
+			if (jcursesdisplay_Functions.supported && !strcmp(argv[a], "curses")) {
 				currentDisplay = &jcursesdisplay_Functions;
-			} else if (!strcmp(argv[a], "text")) {
+			} else if (jtxtdisplay_Functions.supported && !strcmp(argv[a], "text")) {
 				currentDisplay = &jtxtdisplay_Functions;
+			} else if (juiadisplay_Functions.supported && !strcmp(argv[a], "uia")) {
+				currentDisplay = &juiadisplay_Functions;
 			} else {
 				fprintf(stderr, "display type %s is not supported.\n", argv[a]);
 				exit(255);
@@ -143,10 +159,21 @@ void parseCommandLineAndConfig(int argc, char ** argv) {
 				fprintf(stderr, "%s switch requires filename to debug to as an argument\n", argv[a]);
 				exit(255);
 			}
-			debugFile = fopen(argv[++a], "w");
-			if (!debugFile) {
-				perror("Could not open debug file");
+			++a;
+			if (!strcmp(argv[a], "syslog")) {
+#ifdef SUPPORT_SYSLOG
+				debugOut = DEBUGOUT_SYSLOG;
+#else
+				fprintf(stderr, "Syslog output not enabled in compilation\n");
 				exit(255);
+#endif
+			} else {
+				debugFile = fopen(argv[a], "w");
+				if (!debugFile) {
+					perror("Could not open debug file");
+					exit(255);
+				}
+				debugOut = DEBUGOUT_FILE;
 			}
 			continue;
 		}
@@ -270,9 +297,16 @@ int main(int argc, char ** argv) {
 	jprocessor_Setup();
 	jresolver_Setup();
 
-	currentDisplay = &jcursesdisplay_Functions;
+	if (jcursesdisplay_Functions.supported)
+		currentDisplay = &jcursesdisplay_Functions;
+	else
+		currentDisplay = &jtxtdisplay_Functions;
 
 	parseCommandLineAndConfig(argc, argv);
+
+	if (!currentDisplay->presetup()) {
+		return 0;
+	}
 
 	jconfig_ConfigureModules();
 	initializeDevices();

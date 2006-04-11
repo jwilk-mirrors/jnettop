@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jconfig.h,v 1.3 2005-07-01 10:25:36 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jconfig.h,v 1.4 2006-04-11 15:21:05 merunka Exp $
  *
  */
 
@@ -34,9 +34,10 @@ typedef struct __jconfig_settings {
 	guint		localAggregation;
 	guint		remoteAggregation;
 
-	GPtrArray	*_bpfFilters;
+	GPtrArray	* _bpfFilters;
 	int		_selectedBpfFilter;
 	char		* _adHocBpfFilter;
+	jbase_network_mask_list	* _networkMaskList;
 } jconfig_settings;
 
 gboolean jconfig_Setup();
@@ -48,6 +49,9 @@ const char * jconfig_GetSelectedBpfFilterText();
 const char * jconfig_GetSelectedBpfFilterName();
 void jconfig_AddBpfFilter(char *filterName, char *filterText);
 int jconfig_FindBpfFilterByName(char *filterName);
+
+void jconfig_AddLocalNetwork(const jbase_mutableaddress *network, const jbase_mutableaddress *netmask);
+int jconfig_FindMatchingLocalNetworkIndex(const jbase_mutableaddress *network);
 
 extern jconfig_settings	jconfig_Settings;
 

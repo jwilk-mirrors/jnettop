@@ -13,6 +13,21 @@ Just in case you wanted to write me any comments, hints, postcards, herritage
 announcements, love, wish, abuse etc., feel free to use my email, j@kubs.cz,
 please include "jnettop" in the subject of your mail(!!).
 
+-- Installation --
+
+Download the sources (http://jnettop.kubs.info), unpack and decide, whether
+you want:
+
+  support for NCURSES display (default is yes)
+  support for logging into SYSLOG (default is yes)
+  support for UIA protocol (default is no) (see README.UIA for more info)
+
+if you don't want the default behaviour for any of the above options, specify
+
+  --without-ncurses, --without-syslog, --enable-uia
+
+respectivelly to configure script. Make as usual.
+
 -- FreeBSD Notes --
 
 Is jnettop crashing under your FreeBSD? Try passing
@@ -134,6 +149,14 @@ thru "resolve" keyword in configuration file:
 
     enables/disables resolving completelly
 
+Since version 0.12, jnettop supports explicit list of local networks. Local
+networks then appear on the left side of display:
+
+  local_network "<network ip>" "<network mask>"
+
+    this keyword configures packet classifier, so that hosts matching this
+    classification will be considered local.
+
 The pathname of configuraton file can be overrided by specifying -f command
 line parameter.
 
@@ -206,9 +229,9 @@ jnettop consumes all available CPU time, but should behave nicely, so that
 it consumes all time up to 100%. Other processes should have theire appropriate
 time. This behaviour does not include Linux
 
-Copyright (C) 2002, 2003, 2004 Jakub Skopal
+Copyright (C) 2002, 2003, 2004, 2005, 2006 Jakub Skopal
 Portions of the package are taken from the tcpdump project and their rights are
 held by their respective owners stated in the beginning of the files.
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/README,v 1.19 2006-04-08 11:48:33 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/README,v 1.20 2006-04-11 15:21:05 merunka Exp $
 

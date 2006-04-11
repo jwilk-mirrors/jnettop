@@ -1,0 +1,84 @@
+Justin Killen writes:
+
+listen:ASCII:<interface name>:<data size>:<bpf filter>:<max lines>
+
+interface name  required - the name of the interface that we want to  attach to.
+data size       optional - the literal text 'bits' to change the output to bits
+                           instead of bytes (default is bytes).
+bpf filter      optional - the bpf filter to use (default is all traffic on the interface).
+max lines       optional - this specifies the maximum number of lines of data you
+                           want returned (in the ncurses view, this is determined by
+                           the terminal size, but there is no terminal here, so we must
+                           specify explicitly)
+
+This will respond in one of two ways:
+
+if there is a problem:
+listen:ASCII:NAK:<error>
+where <error> is a textual representation of the error that occurred
+
+or
+
+listen:ASCII:<id>:ACK:<device>:<data size>:<bpf filter>:<max lines>
+where <id> is the pid of the process (this is used by the proxy to  
+determine which underlying jnettop session to send commands to)
+and <device>, <data size>, <bpf filter>, and <max lines> are the  
+initial request echoed back.
+
+
+
+After initialization, jnettop will attach itself to the interface and  
+start recording traffic.  When the user wants to view the results, type:
+
+get:ASCII:<id>:<max wait>
+where <id> is the pid of the proccess
+and <max wait> is the max number of uSeconds to wait (in the event of  
+no data being available yet, wait and check again)
+
+The return data will be something like this (ip's changed for security):
+
+get:ASCII:7007:0:ACK:TOTAL:::::11.8k/s:12.4k/s:24.2k/s
+get:ASCII:7007:0:ACK:1.2.3.4:50:IP:1.2.3.5:50:5.67k/s:9.6k/s:15.3k/s
+get:ASCII:7007:0:ACK:1.2.3.4:10375:TCP:1.2.3.5:22:3.09k/s:1.95k/s:5.05k/s
+get:ASCII:7007:0:ACK:0.0.0.0:0:ARP:0.0.0.0:0:1.12k/s:0b/s:1.12k/s
+get:ASCII:7007:0:ACK:1.2.3.4:53:UDP:1.2.3.5:51795:376b/s:168b/s:544b/s
+get:ASCII:7007:0:ACK:1.2.3.4:53:UDP:1.2.3.5:56124:376b/s:168b/s:544b/s
+get:ASCII:7007:0:ACK:1.2.3.4:53:UDP:1.2.3.5:57578:376b/s:168b/s:544b/s
+get:ASCII:7007:0:ACK:1.2.3.4:53:UDP:1.2.3.5:54968:320b/s:168b/s:488b/s
+get:ASCII:7007:0:ACK:1.2.3.4:53:UDP:1.2.3.5:60545:320b/s:152b/s:472b/s
+get:ASCII:7007:0:ACK:0.0.0.0:0:ETHER:0.0.0.0:0:192b/s:0b/s:192b/s
+get:ASCII:7007:0:ACK:1.2.3.4:53:UDP:1.2.3.5:54392:0b/s:0b/s:0b/s
+get:ASCII:7007:0:ACK:1.2.3.4:53:UDP:1.2.3.5:57988:0b/s:0b/s:0b/s
+get:ASCII:7007:0:ACK:1.2.3.4:53:UDP:1.2.3.5:55681:0b/s:0b/s:0b/s
+get:ASCII:7007:0:ACK:1.2.3.4:53:UDP:1.2.3.5:54390:0b/s:0b/s:0b/s
+
+The first line will be the total line, where all others are data  
+lines.  Each entry is separated by a newline, and a double newline at  
+the end to specify the end of the data set.  The fields are as follows:
+
+for the total line
+get:ASCII:<id>:<time waited>:ACK:TOTAL:::::<src bps>:<dst bps>:<total bps>
+where <id> is the pid of the process
+and <time waited> is the length of time (in uSeconds) that the  
+request waited while looking for data (this happens if the data is an  
+empty set - see [max wait] above in the get request)
+and <src bps> is the RX
+and <dst bps> is the TX
+and <total bps> is RX + TX
+
+for the other lines:
+get:ASCII:<id>:<time waited>:ACK:<src address>:<src  
+port>:<protocol>:<dst address>:<dst port>:<src bps>:<dst bps>:<total  
+bps>
+where <id>, <time waited>, <src bps>, <dst bps>, and <total bps> are  
+the same as above
+and <src address> is the source address,
+and <src port> is the source port
+and <dst address> is the destination address
+and <dst port> is the destination port
+
+
+Lastly, to end a session:
+end:ASCII:<id>
+where <id> is the process id.
+

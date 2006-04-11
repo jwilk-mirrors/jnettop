@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jconfig.c,v 1.5 2005-07-01 11:25:32 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jconfig.c,v 1.6 2006-04-11 15:21:05 merunka Exp $
  *
  */
 
@@ -85,6 +85,7 @@ gboolean jconfig_Setup() {
 	jconfig_Settings.remoteAggregation = AGG_UNKNOWN;
 	jconfig_Settings._selectedBpfFilter = -1;
 	jconfig_Settings._adHocBpfFilter = NULL;
+	jconfig_Settings._networkMaskList = NULL;
 	return TRUE;
 }
 
@@ -288,6 +289,26 @@ gboolean jconfig_ParseFile(char *configFileName) {
 			}
 			continue;
 		}
+		if (!g_ascii_strcasecmp(s->value.v_identifier, "local_network")) {
+			int af1, af2;
+			jbase_mutableaddress mask;
+			jbase_mutableaddress value;
+			if (!parse_ip(s, &value, &af1)) {
+				fprintf(stderr, "Parse error on line %d: expecting ip address.\n", line);
+				return FALSE;
+			}
+			if (!parse_ip(s, &mask, &af2)) {
+				fprintf(stderr, "Parse error on line %d: expecting ip mask.\n", line);
+				return FALSE;
+			}
+			if (af1 != af2) {
+				fprintf(stderr, "Parse error on line %d: ip mask and ip address must be from the same family.\n", line);
+				return FALSE;
+			}
+
+			jconfig_AddLocalNetwork(&value, &mask);
+			continue;
+		}
 	}
 
 	g_hash_table_destroy(variables);
@@ -346,4 +367,33 @@ int jconfig_FindBpfFilterByName(char *filterName) {
 	return -1;
 }
 
-gint jconfig_FindBpfFilterByName(char *filterName);
+void jconfig_AddLocalNetwork(const jbase_mutableaddress *network, const jbase_mutableaddress *netmask) {
+	jbase_network_mask_list * current = NULL;
+	current = g_new0(jbase_network_mask_list, 1);
+	memcpy(&current->network, network, sizeof(jbase_mutableaddress));
+	memcpy(&current->netmask, netmask, sizeof(jbase_mutableaddress));
+	current->next = jconfig_Settings._networkMaskList;
+	jconfig_Settings._networkMaskList = current;
+}
+
+int jconfig_FindMatchingLocalNetworkIndex(const jbase_mutableaddress *network) {
+	jbase_network_mask_list * current;
+	int priority = 64000;
+
+	current = jconfig_Settings._networkMaskList;
+	while (current) {
+		priority --;
+
+		jbase_mutableaddress addr;
+		memcpy(&addr, network, sizeof(jbase_mutableaddress));
+		memand((char *) &addr, (const char *) &current->netmask, sizeof(jbase_mutableaddress));
+		if (!memcmp(&addr, &current->network, sizeof(jbase_mutableaddress))) {
+			return priority;
+		}
+
+		current = current->next;
+	}
+
+	return 64000;
+}
+
