@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.in,v 1.35 2006-04-11 15:21:05 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.in,v 1.36 2006-04-11 15:59:59 merunka Exp $
 SHELL = @SHELL@
 
 srcdir = @srcdir@
@@ -90,7 +90,7 @@ AM_LDFLAGS = @GLIB_LIBS@ @NSL_LIBS@ @SOCKET_LIBS@
 
 man_MANS = jnettop.8
 
-EXTRA_DIST = jnettop.spec .jnettop $(man_MANS)
+EXTRA_DIST = jnettop.spec .jnettop $(man_MANS) PORTING README.UIA
 
 bin_PROGRAMS = jnettop
 

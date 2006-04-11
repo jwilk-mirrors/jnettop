@@ -1,4 +1,4 @@
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.spec,v 1.15 2006-04-08 11:48:34 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.spec,v 1.16 2006-04-11 15:59:59 merunka Exp $
 
 Summary: Network traffic tracker
 Name: jnettop
@@ -37,11 +37,12 @@ rm -r $RPM_BUILD_ROOT
 %{_mandir}/man8/jnettop.8.gz
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/jnettop-lookup-nmb
-%doc AUTHORS ChangeLog COPYING INSTALL NEWS README .jnettop
+%doc AUTHORS ChangeLog COPYING INSTALL NEWS README README.UIA .jnettop PORTING
 
 %changelog
 * Fri Mar 31 2006 Jakub Skopal <j@kubs.cz> 0.12.0-1
 - transition to release 0.12.0, see ChangeLog
+- added README.UIA
 
 * Thu Jul 1 2005 Jakub Skopal <j@kubs.cz> 0.11.0-2
 - added jnettop-lookup-nmb

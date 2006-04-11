@@ -1,11 +1,11 @@
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.am,v 1.13 2006-04-11 15:21:05 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.am,v 1.14 2006-04-11 15:59:59 merunka Exp $
 
 INCLUDES = -I$(top_srcdir)/include @GLIB_CFLAGS@
 AM_LDFLAGS = @GLIB_LIBS@ @NSL_LIBS@ @SOCKET_LIBS@
 
 man_MANS = jnettop.8
 
-EXTRA_DIST = jnettop.spec .jnettop $(man_MANS)
+EXTRA_DIST = jnettop.spec .jnettop $(man_MANS) PORTING README.UIA
 
 bin_PROGRAMS = jnettop
 
