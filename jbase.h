@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jbase.h,v 1.5 2006-04-11 15:21:05 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jbase.h,v 1.6 2006-04-12 07:47:01 merunka Exp $
  *
  */
 
@@ -207,6 +207,7 @@ typedef struct __jbase_display {
 typedef struct _jbase_network_mask_list {
 	jbase_mutableaddress	network;
 	jbase_mutableaddress	netmask;
+	int			af;
 	struct _jbase_network_mask_list * next;
 } jbase_network_mask_list;
 

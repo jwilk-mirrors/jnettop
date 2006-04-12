@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jconfig.c,v 1.6 2006-04-11 15:21:05 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jconfig.c,v 1.7 2006-04-12 07:47:01 merunka Exp $
  *
  */
 
@@ -306,7 +306,7 @@ gboolean jconfig_ParseFile(char *configFileName) {
 				return FALSE;
 			}
 
-			jconfig_AddLocalNetwork(&value, &mask);
+			jconfig_AddLocalNetwork(&value, &mask, af1);
 			continue;
 		}
 	}
@@ -367,16 +367,17 @@ int jconfig_FindBpfFilterByName(char *filterName) {
 	return -1;
 }
 
-void jconfig_AddLocalNetwork(const jbase_mutableaddress *network, const jbase_mutableaddress *netmask) {
+void jconfig_AddLocalNetwork(const jbase_mutableaddress *network, const jbase_mutableaddress *netmask, int af) {
 	jbase_network_mask_list * current = NULL;
 	current = g_new0(jbase_network_mask_list, 1);
 	memcpy(&current->network, network, sizeof(jbase_mutableaddress));
 	memcpy(&current->netmask, netmask, sizeof(jbase_mutableaddress));
+	current->af = af;
 	current->next = jconfig_Settings._networkMaskList;
 	jconfig_Settings._networkMaskList = current;
 }
 
-int jconfig_FindMatchingLocalNetworkIndex(const jbase_mutableaddress *network) {
+int jconfig_FindMatchingLocalNetworkIndex(const jbase_mutableaddress *network, int af) {
 	jbase_network_mask_list * current;
 	int priority = 64000;
 
@@ -384,10 +385,7 @@ int jconfig_FindMatchingLocalNetworkIndex(const jbase_mutableaddress *network) {
 	while (current) {
 		priority --;
 
-		jbase_mutableaddress addr;
-		memcpy(&addr, network, sizeof(jbase_mutableaddress));
-		memand((char *) &addr, (const char *) &current->netmask, sizeof(jbase_mutableaddress));
-		if (!memcmp(&addr, &current->network, sizeof(jbase_mutableaddress))) {
+		if (jutil_IsInNetwork(network, af, &current->network, &current->netmask, current->af)) {
 			return priority;
 		}
 

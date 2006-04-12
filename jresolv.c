@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.15 2006-04-11 15:21:05 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolv.c,v 1.16 2006-04-12 07:47:01 merunka Exp $
  * 
  */
 
@@ -328,14 +328,15 @@ gboolean jresolv_ResolveStream(const jbase_packet *packet, jbase_stream *stream,
 
 	cmpres = 0;
 
-	int srcIndex = jconfig_FindMatchingLocalNetworkIndex(&stream->src);
-	int dstIndex = jconfig_FindMatchingLocalNetworkIndex(&stream->dst);
+	int af = JBASE_AF(stream->proto);
+	int srcIndex = jconfig_FindMatchingLocalNetworkIndex(&stream->src, af);
+	int dstIndex = jconfig_FindMatchingLocalNetworkIndex(&stream->dst, af);
 	cmpres = srcIndex - dstIndex;
 	if (cmpres == 0) {
 		cmpres = stream->rxtx;
 	}
 	if (cmpres == 0) {
-		cmpres = memcmp(&stream->src, &stream->dst, sizeof(jbase_mutableaddress));
+		cmpres = memcmp(&stream->src, &stream->dst, JBASE_AF_SIZE(af));
 	}
 	if (cmpres == 0) {
 		cmpres = stream->srcport > stream->dstport;

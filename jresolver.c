@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolver.c,v 1.4 2005-07-01 10:25:37 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolver.c,v 1.5 2006-04-12 07:47:01 merunka Exp $
  *
  */
 
@@ -119,12 +119,8 @@ static void resolverThreadFunc(gpointer task, gpointer user_data) {
 
 	for (i=0; i<resolverTypes->len; i++) {
 		jresolver_resolvertype *type = (jresolver_resolvertype *)g_ptr_array_index(resolverTypes, i);
-		jbase_mutableaddress	addr;
-		if (type->af != entry->af)
-			continue;
-		memcpy(&addr, &entry->addr, JBASE_AF_SIZE(entry->af));
-		memand((char *) &addr, (const char *) &type->mask, JBASE_AF_SIZE(entry->af));
-		if (!memcmp(&addr, &type->value, JBASE_AF_SIZE(entry->af))) {
+
+		if (jutil_IsInNetwork(&entry->addr, entry->af, &type->value, &type->mask, type->af)) {
 			switch (type->lookupType) {
 				case LOOKUPTYPE_EXTERNAL:
 					if (resolveExternal(type->externalLookupScript, entry))

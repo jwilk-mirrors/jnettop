@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jutil.c,v 1.6 2006-04-11 15:21:06 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jutil.c,v 1.7 2006-04-12 07:47:01 merunka Exp $
  *
  */
 
@@ -137,3 +137,11 @@ void jutil_formatNumber(guint32 n, gboolean onoffPackets, gchar *buf, int len) {
 	sprintf(buf, fmt, f);
 }
 
+gboolean jutil_IsInNetwork(const jbase_mutableaddress *address, int address_af, const jbase_mutableaddress *network, const jbase_mutableaddress *netmask, int network_af) {
+	jbase_mutableaddress	addr;
+	if (address_af != network_af)
+		return FALSE;
+	memcpy(&addr, address, JBASE_AF_SIZE(address_af));
+	memand((char *) &addr, (const char *) netmask, JBASE_AF_SIZE(address_af));
+	return !memcmp(&addr, network, JBASE_AF_SIZE(address_af));
+}

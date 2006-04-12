@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.37 2006-04-11 15:21:05 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.38 2006-04-12 07:47:01 merunka Exp $
  *
  */
 
@@ -85,7 +85,7 @@ void parseCommandLineAndConfig(int argc, char ** argv) {
 				"    -b, --bit-units        show BPS in bits per second, not bytes per second\n"
 				"    -c, --content-filter   disable content filtering\n"
 				"    -d, --debug filename   write debug information into file (or syslog)\n"
-				"    --display type         type of display (curses, text)\n"
+				"    --display type         type of display (curses, text, uia)\n"
 				"    -f, --config-file name reads configuration from file. defaults to ~/.jnettop\n"
 				"    --format format        list of fields to list in text output\n"
 				"    -i, --interface name   capture packets on specified interface\n"

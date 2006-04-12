@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jconfig.h,v 1.4 2006-04-11 15:21:05 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jconfig.h,v 1.5 2006-04-12 07:47:01 merunka Exp $
  *
  */
 
@@ -50,8 +50,8 @@ const char * jconfig_GetSelectedBpfFilterName();
 void jconfig_AddBpfFilter(char *filterName, char *filterText);
 int jconfig_FindBpfFilterByName(char *filterName);
 
-void jconfig_AddLocalNetwork(const jbase_mutableaddress *network, const jbase_mutableaddress *netmask);
-int jconfig_FindMatchingLocalNetworkIndex(const jbase_mutableaddress *network);
+void jconfig_AddLocalNetwork(const jbase_mutableaddress *network, const jbase_mutableaddress *netmask, int af);
+int jconfig_FindMatchingLocalNetworkIndex(const jbase_mutableaddress *network, int af);
 
 extern jconfig_settings	jconfig_Settings;
 
