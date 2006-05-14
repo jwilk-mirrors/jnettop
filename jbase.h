@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jbase.h,v 1.6 2006-04-12 07:47:01 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jbase.h,v 1.7 2006-05-14 23:55:40 merunka Exp $
  *
  */
 
@@ -60,7 +60,7 @@
 #include "ieee8021q.h"
 #include <net/if.h>
 #include <netinet/if_ether.h>
-#if WITH_NCURSES
+#if WITH_NCURSES && HAVE_LIBNCURSES
 # if HAVE_NCURSES_H
 #  include <ncurses.h>
 #  define SUPPORT_NCURSES
@@ -80,6 +80,13 @@
 #  define SUPPORT_SYSLOG
 # endif
 #endif
+#if WITH_DB4
+# if HAVE_DB_H && HAVE_LIBDB
+#  include <db.h>
+#  define SUPPORT_DB4
+# endif
+#endif
+
 
 #define HISTORY_LENGTH			5
 #define FREEPACKETSTACK_PEEK		50
@@ -112,6 +119,8 @@ typedef union __jbase_mutableaddress {
 	struct in_addr addr4;
 	struct in6_addr addr6;
 } jbase_mutableaddress;
+
+void	debugip(int priority, int af, const jbase_mutableaddress *addr, const char *message);
 
 typedef struct __jbase_resolv_entry {
 	jbase_mutableaddress	addr;
@@ -156,6 +165,9 @@ typedef struct __jbase_stream {
 	struct __jbase_resolv_entry	*srcresolv;
 	struct __jbase_resolv_entry	*dstresolv;
 
+	// uid
+	guint64			uid;
+
 	// stream classification data
 	gboolean		direction;
 	int			rxtx;
@@ -177,6 +189,8 @@ typedef struct __jbase_stream {
 	guint			displayed;
 
 	// filter data information
+	guint			filterDataLastDisplayChangeCount;
+	guint			filterDataChangeCount;
 	gchar			filterDataString[FILTER_DATA_STRING_LENGTH];
 	FilterDataFunc		filterDataFunc;
 	FilterDataFreeFunc	filterDataFreeFunc;
@@ -186,17 +200,20 @@ typedef struct __jbase_stream {
 #define	SET_FILTER_DATA_STRING(stream, string) { \
 		memset((stream)->filterDataString, 0, FILTER_DATA_STRING_LENGTH); \
 		g_strlcpy((stream)->filterDataString, string, FILTER_DATA_STRING_LENGTH); \
+		(stream)->filterDataChangeCount ++; \
 	}
 
 #define SET_FILTER_DATA_STRING_2(stream, format, arg0, arg1) { \
 		memset((stream)->filterDataString, 0, FILTER_DATA_STRING_LENGTH); \
 		g_snprintf((stream)->filterDataString, FILTER_DATA_STRING_LENGTH, format, arg0, arg1); \
+		(stream)->filterDataChangeCount ++; \
 	}
 
 typedef struct __jbase_display {
 	gboolean	supported;
 	gboolean	(*presetup)();
 	void		(*setup)();
+	gboolean	(*prerunsetup)();
 	void		(*prerun)();
 	gboolean	(*run)();
 	void		(*shutdown)();

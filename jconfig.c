@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jconfig.c,v 1.7 2006-04-12 07:47:01 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jconfig.c,v 1.8 2006-05-14 23:55:40 merunka Exp $
  *
  */
 
@@ -26,6 +26,7 @@
 #include "jprocessor.h"
 #include "jresolver.h"
 #include "jconfig.h"
+#include "jdevice.h"
 
 jconfig_settings	jconfig_Settings;
 
@@ -74,6 +75,26 @@ static gboolean parse_ip(GScanner *s, jbase_mutableaddress *dest, int *af) {
 	}
 	return FALSE;
 }
+
+static gboolean parse_ip_with_netmask(GScanner *s, jbase_mutableaddress *dest, jbase_mutableaddress *netmask, int *af) {
+	int oaf;
+	GTokenType tt;
+	tt = g_scanner_peek_next_token(s);
+	if (tt != G_TOKEN_STRING) {
+		return FALSE;
+	}
+	if (jutil_String2AddressAndNetmask(s->next_value.v_string, dest, netmask, af)) {
+		g_scanner_get_next_token(s);
+		return TRUE;
+	}
+	if (!parse_ip(s, dest, af)) {
+		return FALSE;
+	}
+	if (!parse_ip(s, netmask, &oaf) || oaf != *af)
+		return FALSE;
+	return TRUE;
+}
+
 
 gboolean jconfig_Setup() {
 	jconfig_Settings.deviceName = NULL;
@@ -129,7 +150,9 @@ gboolean jconfig_ParseFile(char *configFileName) {
 			return FALSE;
 		}
 		if (!g_ascii_strcasecmp(s->value.v_identifier, "variable")) {
-			char * variableName, * variableValue;
+			char * variableName;
+			char *c;
+			GString *str;
 			tt = g_scanner_get_next_token(s);
 			if (tt != G_TOKEN_STRING) {
 				fprintf(stderr, "Parse error on line %d: variable name as string expected.\n", line);
@@ -141,8 +164,31 @@ gboolean jconfig_ParseFile(char *configFileName) {
 				fprintf(stderr, "Parse error on line %d: variable value as string expected.\n", line);
 				return FALSE;
 			}
-			variableValue = g_strdup(s->value.v_string);
-			g_hash_table_insert(variables, variableName, variableValue);
+			str = g_string_new("");
+			for (c=s->value.v_string; *c; c++) {
+				char * rightBracket;
+				char * variableValue;
+				if (*c == '$' && *(c+1) == '{') {
+					rightBracket = strchr(c, '}');
+					c += 2;
+					if (!rightBracket) {
+						fprintf(stderr, "Wrong variable substitution on line %d!\n", line);
+						return FALSE;
+					}
+					*rightBracket = '\0';
+					variableValue = g_hash_table_lookup(variables, c);
+					if (!variableValue) {
+						fprintf(stderr, "Undefined variable %s on line %d!\n", c, line);
+						return FALSE;
+					}
+					g_string_append(str, variableValue);
+					c = rightBracket;
+				} else {
+					g_string_append_c(str, *c);
+				}
+			}
+			g_hash_table_insert(variables, variableName, str->str);
+			g_string_free(str, FALSE);
 			continue;
 		}
 		if (!g_ascii_strcasecmp(s->value.v_identifier, "rule")) {
@@ -254,20 +300,12 @@ gboolean jconfig_ParseFile(char *configFileName) {
 				jconfig_Settings.onoffResolver = val;
 		}
 		if (!g_ascii_strcasecmp(s->value.v_identifier, "resolve_rule")) {
-			int af1, af2;
+			int af;
 			jbase_mutableaddress mask;
 			jbase_mutableaddress value;
 			int resolvertype;
-			if (!parse_ip(s, &value, &af1)) {
-				fprintf(stderr, "Parse error on line %d: expecting ip address.\n", line);
-				return FALSE;
-			}
-			if (!parse_ip(s, &mask, &af2)) {
-				fprintf(stderr, "Parse error on line %d: expecting ip mask.\n", line);
-				return FALSE;
-			}
-			if (af1 != af2) {
-				fprintf(stderr, "Parse error on line %d: ip mask and ip address must be from the same family.\n", line);
+			if (!parse_ip_with_netmask(s, &value, &mask, &af)) {
+				fprintf(stderr, "Parse error on line %d: expecting ip address and mask.\n", line);
 				return FALSE;
 			}
 			if ((resolvertype = parse_resolvertype(s)) == LOOKUPTYPE_UNKNOWN) {
@@ -276,7 +314,7 @@ gboolean jconfig_ParseFile(char *configFileName) {
 			}
 			switch (resolvertype) {
 				case LOOKUPTYPE_NORMAL:
-					jresolver_AddNormalLookup(af1, &mask, &value);
+					jresolver_AddNormalLookup(af, &mask, &value);
 					break;
 				case LOOKUPTYPE_EXTERNAL:
 					tt = g_scanner_get_next_token(s);
@@ -284,29 +322,21 @@ gboolean jconfig_ParseFile(char *configFileName) {
 						fprintf(stderr, "Parse error on line %d: expecting external resolver path.\n", line);
 						return FALSE;
 					}
-					jresolver_AddExternalLookupScript(af1, &mask, &value, g_strdup(s->value.v_string));
+					jresolver_AddExternalLookupScript(af, &mask, &value, g_strdup(s->value.v_string));
 					break;
 			}
 			continue;
 		}
 		if (!g_ascii_strcasecmp(s->value.v_identifier, "local_network")) {
-			int af1, af2;
+			int af;
 			jbase_mutableaddress mask;
 			jbase_mutableaddress value;
-			if (!parse_ip(s, &value, &af1)) {
-				fprintf(stderr, "Parse error on line %d: expecting ip address.\n", line);
-				return FALSE;
-			}
-			if (!parse_ip(s, &mask, &af2)) {
-				fprintf(stderr, "Parse error on line %d: expecting ip mask.\n", line);
-				return FALSE;
-			}
-			if (af1 != af2) {
-				fprintf(stderr, "Parse error on line %d: ip mask and ip address must be from the same family.\n", line);
+			if (!parse_ip_with_netmask(s, &value, &mask, &af)) {
+				fprintf(stderr, "Parse error on line %d: expecting ip address and mask.\n", line);
 				return FALSE;
 			}
 
-			jconfig_AddLocalNetwork(&value, &mask, af1);
+			jconfig_AddLocalNetwork(&value, &mask, af);
 			continue;
 		}
 	}
@@ -393,5 +423,22 @@ int jconfig_FindMatchingLocalNetworkIndex(const jbase_mutableaddress *network, i
 	}
 
 	return 64000;
+}
+
+void jconfig_SelectDevice(const char *deviceName) {
+	int i;
+
+	jconfig_Settings.deviceName = deviceName;
+
+	for (i=0; i<jdevice_DevicesCount; i++) {
+		if (!strcmp(jdevice_Devices[i].name, jconfig_Settings.deviceName)) {
+			jconfig_Settings.device = jdevice_Devices + i;
+			break;
+		}
+	}
+
+	if (i >= jdevice_DevicesCount) {
+		jconfig_Settings.device = jdevice_CreateSingleDevice(jconfig_Settings.deviceName);
+	}
 }
 

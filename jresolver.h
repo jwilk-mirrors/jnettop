@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolver.h,v 1.4 2005-07-01 10:25:37 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolver.h,v 1.5 2006-05-14 23:55:40 merunka Exp $
  *
  */
 
@@ -37,12 +37,18 @@ typedef struct __jresolver_resolvertype {
 	char			*externalLookupScript;
 } jresolver_resolvertype;
 
+typedef void (*ResolvedNotifyFunc) (jbase_resolv_entry *entry);
+
 gboolean		jresolver_Setup();
+void			jresolver_Initialize();
+void			jresolver_Shutdown();
 void			jresolver_SetEnabled(gboolean isEnabled);
 jbase_resolv_entry 	*jresolver_Lookup(int af, const jbase_mutableaddress *address);
 void			jresolver_AddExternalLookupScript(int af, const jbase_mutableaddress *mask, const jbase_mutableaddress *value, char *lookupScriptName);
 void			jresolver_AddNormalLookup(int af, const jbase_mutableaddress *mask, const jbase_mutableaddress *value);
+void			jresolver_SetResolvedNotifyFunc(ResolvedNotifyFunc resolvedNotifyFunction);
 
-extern	gboolean	jresolver_IsEnabled;
+extern gboolean			jresolver_IsEnabled;
+extern ResolvedNotifyFunc	jresolver_ResolvedNotifyFunc;
 
 #endif

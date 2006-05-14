@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolver.c,v 1.5 2006-04-12 07:47:01 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jresolver.c,v 1.6 2006-05-14 23:55:40 merunka Exp $
  *
  */
 
@@ -33,6 +33,8 @@ GThreadPool	*resolverThreadPool;
 GMutex		*gethostbyaddrMutex;
 
 GPtrArray	*resolverTypes;
+
+ResolvedNotifyFunc	jresolver_ResolvedNotifyFunc;
 
 jbase_resolv_entry *jresolver_Lookup(int af, const jbase_mutableaddress *address) {
 	jbase_resolv_entry key;
@@ -113,9 +115,131 @@ static gboolean resolveExternal(char *lookupScriptPath, jbase_resolv_entry *entr
 	return FALSE;
 }
 
-static void resolverThreadFunc(gpointer task, gpointer user_data) {
+#ifdef SUPPORT_DB4
+
+DB *cacheDb = NULL;
+
+static gboolean initializeCache() {
+	int err;
+	if ((err = db_create(&cacheDb, NULL, 0))) {
+		debug(LOG_NOTICE, "db_create: Cannot create database environment (%s)", db_strerror(err));
+		goto initialize_cleanup;
+	}
+	if ((err = cacheDb->set_alloc(cacheDb, (void*(*)(size_t))g_malloc, (void*(*)(void*,size_t))g_realloc, (void(*)(void*))g_free))) {
+		debug(LOG_NOTICE, "db->set_alloc: Cannot set allocation functions to DB4 (%s)", db_strerror(err));
+		goto initialize_cleanup;
+	}
+	if ((err = cacheDb->open(cacheDb, NULL, "/var/cache/jnettop/dns.cache", NULL, DB_HASH, DB_AUTO_COMMIT || DB_CREATE || DB_THREAD, 0))) {
+		debug(LOG_NOTICE, "db->open: Cannot open/create database (%s)", db_strerror(err));
+		goto initialize_cleanup;
+	}
+	
+	return TRUE;
+
+initialize_cleanup:
+	if (cacheDb != NULL) {
+		cacheDb->close(cacheDb, 0);
+		cacheDb = NULL;
+	}
+	return FALSE;
+}
+
+static gboolean resolveFromCache(jbase_resolv_entry *entry) {
+	int err;
+	DBT keyThang, valueThang;
+
+	if (cacheDb == NULL)
+		return FALSE;
+	
+	memset(&keyThang, '\0', sizeof(DBT));
+	memset(&valueThang, '\0', sizeof(DBT));
+
+	keyThang.data = &entry->addr;
+	keyThang.size = JBASE_AF_SIZE(entry->af);
+	keyThang.ulen = keyThang.size;
+	
+	valueThang.data = NULL;
+	valueThang.flags = DB_DBT_MALLOC;
+
+	err = cacheDb->get(cacheDb, NULL, &keyThang, &valueThang, 0);
+
+	if (err == DB_NOTFOUND) {
+		return FALSE;
+	}
+
+	if (err) {
+		debug(LOG_NOTICE, "db->get: Cannot get record from database (%s)", db_strerror(err));
+		return FALSE;
+	}
+
+	entry->name = (gchar *)valueThang.data;
+	debug(LOG_DEBUG, "resolved from cache: %s", entry->name);
+	return TRUE;
+}
+
+static void storeToCache(jbase_resolv_entry *entry) {
+	int err;
+	DBT keyThang, valueThang;
+
+	if (cacheDb == NULL)
+		return;
+	
+	memset(&keyThang, '\0', sizeof(DBT));
+	memset(&valueThang, '\0', sizeof(DBT));
+
+	keyThang.data = &entry->addr;
+	keyThang.size = JBASE_AF_SIZE(entry->af);
+	keyThang.ulen = keyThang.size;
+	
+	valueThang.data = g_strdup(entry->name);
+	valueThang.size = strlen(entry->name) + 1;
+	valueThang.ulen = valueThang.size;
+
+	if ((err = cacheDb->put(cacheDb, NULL, &keyThang, &valueThang, 0))) {
+		debug(LOG_NOTICE, "db->put: Cannot put record to database (%s)", db_strerror(err));
+	}
+
+	g_free(valueThang.data);
+}
+
+static void shutdownCache() {
+	int err;
+
+	if (cacheDb == NULL)
+		return;
+	
+	if ((err = cacheDb->close(cacheDb, 0))) {
+		debug(LOG_NOTICE, "db->close: Cannot close database (%s)", db_strerror(err));
+	}
+	
+	cacheDb = NULL;
+}
+
+#else
+
+static gboolean initializeCache() {
+	return FALSE;
+}
+
+static gboolean resolveFromCache(jbase_resolv_entry *entry) {
+	return FALSE;
+}
+
+static void storeToCache(jbase_resolv_entry *entry) {
+}
+
+static void shutdownCache() {
+}
+
+#endif
+
+ void resolverThreadFunc(gpointer task, gpointer user_data) {
 	int i;
 	jbase_resolv_entry *entry = (jbase_resolv_entry *)task;
+
+	if (resolveFromCache(entry)) {
+		goto resolver_done_nocache;
+	}
 
 	for (i=0; i<resolverTypes->len; i++) {
 		jresolver_resolvertype *type = (jresolver_resolvertype *)g_ptr_array_index(resolverTypes, i);
@@ -124,17 +248,27 @@ static void resolverThreadFunc(gpointer task, gpointer user_data) {
 			switch (type->lookupType) {
 				case LOOKUPTYPE_EXTERNAL:
 					if (resolveExternal(type->externalLookupScript, entry))
-						return;
+						goto resolver_done;
 					break;
 				case LOOKUPTYPE_NORMAL:
 					if (resolveNormal(entry))
-						return;
+						goto resolver_done;
 					break;
 			}
 		}
 	}
 
 	resolveNormal(entry);
+
+resolver_done:
+	if (entry->name != NULL) {
+		storeToCache(entry);
+	}
+
+resolver_done_nocache:
+	if (entry->name != NULL && jresolver_ResolvedNotifyFunc != NULL) {
+		jresolver_ResolvedNotifyFunc(entry);
+	}
 }
 
 static void addZeroResolves() {
@@ -221,4 +355,16 @@ gboolean jresolver_Setup() {
 
 	addZeroResolves();
 	return TRUE;
+}
+
+void jresolver_SetResolvedNotifyFunc(ResolvedNotifyFunc resolvedNotifyFunction) {
+	jresolver_ResolvedNotifyFunc = resolvedNotifyFunction;
+}
+
+void jresolver_Initialize() {
+	initializeCache();
+}
+
+void jresolver_Shutdown() {
+	shutdownCache();
 }

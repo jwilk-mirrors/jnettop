@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jconfig.h,v 1.5 2006-04-12 07:47:01 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jconfig.h,v 1.6 2006-05-14 23:55:40 merunka Exp $
  *
  */
 
@@ -26,7 +26,7 @@
 #include "jbase.h"
 
 typedef struct __jconfig_settings {
-	char		*deviceName;
+	const char	*deviceName;
 	const jbase_device *device;
 	gboolean	onoffContentFiltering;
 	gboolean	onoffPromisc;
@@ -52,6 +52,8 @@ int jconfig_FindBpfFilterByName(char *filterName);
 
 void jconfig_AddLocalNetwork(const jbase_mutableaddress *network, const jbase_mutableaddress *netmask, int af);
 int jconfig_FindMatchingLocalNetworkIndex(const jbase_mutableaddress *network, int af);
+
+void jconfig_SelectDevice(const char *deviceName);
 
 extern jconfig_settings	jconfig_Settings;
 

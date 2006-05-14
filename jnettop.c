@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.38 2006-04-12 07:47:01 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.c,v 1.39 2006-05-14 23:55:40 merunka Exp $
  *
  */
 
@@ -32,10 +32,12 @@
 #include "jcursesdisplay.h"
 #include "jtxtdisplay.h"
 #include "juiadisplay.h"
+#include "jnetdisplay.h"
 
 #define			DEBUGOUT_NONE	0
 #define			DEBUGOUT_SYSLOG	1
 #define			DEBUGOUT_FILE	2
+#define			DEBUGOUT_STDERR	3
 int			debugOut = DEBUGOUT_NONE;
 FILE *			debugFile = NULL;
 
@@ -52,13 +54,21 @@ void debug(int priority, const char *format, ...) {
 
 	switch (debugOut) {
 		case DEBUGOUT_FILE:
+		case DEBUGOUT_STDERR:
 			fprintf(debugFile, "%d - %d, %s\n", getpid(), priority, buffer);
+			fflush(debugFile);
 			break;
 #ifdef SUPPORT_SYSLOG
 		case DEBUGOUT_SYSLOG:
 			syslog(priority, "%d - %d, %s\n", getpid(), priority, buffer);
 #endif
 	}
+}
+
+void debugip(int priority, int af, const jbase_mutableaddress *addr, const char *message) {
+	static char buffer[128];
+	jutil_Address2String(af, addr, buffer, sizeof(buffer));
+	debug(priority, "%s (ip address %s)", message, buffer);
 }
 
 void jbase_cb_DrawStatus(const gchar *msg) {
@@ -130,6 +140,8 @@ void parseCommandLineAndConfig(int argc, char ** argv) {
 				currentDisplay = &jcursesdisplay_Functions;
 			} else if (jtxtdisplay_Functions.supported && !strcmp(argv[a], "text")) {
 				currentDisplay = &jtxtdisplay_Functions;
+			} else if (jnetdisplay_Functions.supported && !strcmp(argv[a], "jnet")) {
+				currentDisplay = &jnetdisplay_Functions;
 			} else if (juiadisplay_Functions.supported && !strcmp(argv[a], "uia")) {
 				currentDisplay = &juiadisplay_Functions;
 			} else {
@@ -167,6 +179,9 @@ void parseCommandLineAndConfig(int argc, char ** argv) {
 				fprintf(stderr, "Syslog output not enabled in compilation\n");
 				exit(255);
 #endif
+			} else if (!strcmp(argv[a], "stderr")) {
+				debugOut = DEBUGOUT_STDERR;
+				debugFile = stderr;
 			} else {
 				debugFile = fopen(argv[a], "w");
 				if (!debugFile) {
@@ -265,19 +280,7 @@ void initializeDevices() {
 				exit(255);
 			}
 	} else if (jconfig_Settings.deviceName) {
-		int i;
-		for (i=0; i<jdevice_DevicesCount; i++) {
-			if (!strcmp(jdevice_Devices[i].name, jconfig_Settings.deviceName)) {
-				jconfig_Settings.device = jdevice_Devices + i;
-				break;
-			}
-		}
-
-		if (i >= jdevice_DevicesCount) {
-			if (!(jconfig_Settings.device = jdevice_CreateSingleDevice(jconfig_Settings.deviceName))) {
-				exit(255);
-			}
-		}
+		jconfig_SelectDevice(jconfig_Settings.deviceName);
 	}
 
 	if (!jconfig_Settings.device) {
@@ -311,11 +314,16 @@ int main(int argc, char ** argv) {
 	jconfig_ConfigureModules();
 	initializeDevices();
 
+	jresolver_Initialize();
 	currentDisplay->setup();
 
 	while (TRUE) {
 
 		jprocessor_ResetStats();
+
+		if (!currentDisplay->prerunsetup()) {
+			break;
+		}
 
 		jcapture_SetDevice(jconfig_Settings.device);
 		jcapture_SetBpfFilterText(jconfig_GetSelectedBpfFilterText());
@@ -343,5 +351,8 @@ int main(int argc, char ** argv) {
 	}
 
 	currentDisplay->shutdown();
+
+	jresolver_Shutdown();
+
 	return 0;
 }

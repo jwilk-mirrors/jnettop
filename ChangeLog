@@ -1,3 +1,10 @@
+2006-05-14	Jakub Skopal <j@kubs.cz>
+ * corrected bugs in compilations with ANSI-strict compilers (thanks to Chistoph
+   Hohmann
+ * variable substitution is now done when defining other variable (thanks again to
+   Christoph)
+ * support for IPv6 in configuration file notations
+
 2006-04-11	Jakub Skopal <j@kubs.cz>
  * added support for UIA output (protocol and sources provided by Justin Killen)
  * added support for conditional compilation of ncurses and uia output
@@ -152,4 +159,4 @@
 
  * initial release
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.29 2006-04-11 15:21:05 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/ChangeLog,v 1.30 2006-05-14 23:55:40 merunka Exp $

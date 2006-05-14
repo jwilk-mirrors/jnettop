@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/juiadisplay.c,v 1.1 2006-04-11 15:21:06 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/juiadisplay.c,v 1.2 2006-05-14 23:55:40 merunka Exp $
  *
  */
 
@@ -431,6 +431,10 @@ static void juiadisplay_Setup() {
 	onoffPackets = FALSE;
 }
 
+static gboolean juiadisplay_PreRunSetup() {
+	return TRUE;
+}
+
 static void juiadisplay_PreRun() {
 }
 
@@ -457,6 +461,7 @@ jbase_display	juiadisplay_Functions = {
 	TRUE,
 	juiadisplay_PreSetup,
 	juiadisplay_Setup,
+	juiadisplay_PreRunSetup,
 	juiadisplay_PreRun,
 	juiadisplay_Run,
 	juiadisplay_Shutdown,

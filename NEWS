@@ -1,3 +1,7 @@
+2006-05-14:	Corrected compilation issues and minor bugs
+		Configuration file variable substitution now works in variable definition
+		Support for IPv6 in configuration file notations
+
 2006-04-11:	Added support for UIA output
 		Added support for conditional compilation of NCURSES and UIA
 		Added optional support for syslog
@@ -49,4 +53,4 @@
 
 2002-08-22:	The package is entirely new.
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/NEWS,v 1.16 2006-04-11 15:21:05 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/NEWS,v 1.17 2006-05-14 23:55:40 merunka Exp $

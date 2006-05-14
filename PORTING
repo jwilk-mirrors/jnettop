@@ -11,7 +11,7 @@ portability tests in there.
 OS		Distro		Arch.	Ver.tested	Status
 ---------------	---------------	-------	--------------- ----------------
 Linux/2.6	Fedora Core 2	i286	0.11.0		COMPILABLE
-Linux/2.6	Fedora Core 4	i386	0.12.0		RUNNING
+Linux/2.6	Fedora Core 4	i386	0.13.0		RUNNING
 Solaris 5.9	Solaris 5.9	i386	0.11.0		COMPILABLE
 Linux/2.4	Debian 2.2	i386	0.11.0		COMPILABLE
 OpenBSD/3.4	OpenBSD		i386	0.11.0		COMPILABLE
@@ -34,4 +34,4 @@ COMPILABLE      Package can be built, but I didn't have root access to test,
                 whether it actually works.
 RUNNING         Package can be compiled and it worked.
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/PORTING,v 1.11 2006-04-08 11:48:33 merunka Exp $
+$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/PORTING,v 1.12 2006-05-14 23:55:40 merunka Exp $

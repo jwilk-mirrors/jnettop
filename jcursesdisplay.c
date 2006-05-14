@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jcursesdisplay.c,v 1.2 2006-04-11 15:21:05 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jcursesdisplay.c,v 1.3 2006-05-14 23:55:40 merunka Exp $
  *
  */
 
@@ -445,6 +445,10 @@ static void	jcursesdisplay_Setup() {
 	onoffBitValues = FALSE;
 }
 
+static gboolean jcursesdisplay_PreRunSetup() {
+	return TRUE;
+}
+
 static void jcursesdisplay_PreRun() {
 	displayStreams = NULL;
 	displayStreamsCount = 0;
@@ -488,6 +492,7 @@ jbase_display	jcursesdisplay_Functions = {
 	TRUE,
 	jcursesdisplay_PreSetup,
 	jcursesdisplay_Setup,
+	jcursesdisplay_PreRunSetup,
 	jcursesdisplay_PreRun,
 	jcursesdisplay_Run,
 	jcursesdisplay_Shutdown,

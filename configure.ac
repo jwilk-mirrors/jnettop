@@ -1,8 +1,8 @@
 #
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/configure.ac,v 1.26 2006-04-11 15:21:05 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/configure.ac,v 1.27 2006-05-14 23:55:40 merunka Exp $
 #
 # Process this file with autoconf to produce a configure script.
-AC_INIT([jnettop], [0.12.0], [j@kubs.cz])
+AC_INIT([jnettop], [0.14.0], [j@kubs.cz])
 AM_INIT_AUTOMAKE
 
 # Checks for programs.
@@ -35,6 +35,15 @@ if test "$ac_cv_use_syslog" = "yes"; then
 	AC_DEFINE([WITH_SYSLOG],[1],[syslog will be supported (if available)])
 fi
 
+AC_ARG_WITH([db4],
+	AC_HELP_STRING([--without-db4], [don't use DB4 for DNS cache, default is USE when available]),
+	[ac_cv_use_db4=$withval], [ac_cv_use_db4=yes])
+if test "$ac_cv_use_db4" = "yes"; then
+	AC_CHECK_HEADERS([db.h])
+	AC_CHECK_LIB([db], [db_create],,)
+	AC_DEFINE([WITH_DB4],[1],[DB4 will be used as DNS cache (if available)])
+fi
+
 AC_ARG_ENABLE([uia],
 	AC_HELP_STRING([--enable-uia], [compile in UIA display support, default is NO]),
 	[ac_cv_enable_uia=$enableval], [ac_cv_enable_uia=no])
@@ -63,7 +72,7 @@ AM_PATH_GLIB_2_0(2.0.1,, AC_MSG_ERROR("glib >= 2.0.1 library required"), gthread
 AC_FUNC_MEMCMP
 AC_FUNC_STRFTIME
 AC_FUNC_VPRINTF
-AC_CHECK_FUNCS([localtime_r memmove memset pcap_findalldevs pcap_setnonblock inet_ntop inet_ntoa inet_aton syslog])
+AC_CHECK_FUNCS([localtime_r memmove memset pcap_findalldevs pcap_setnonblock inet_ntop inet_ntoa inet_pton inet_aton syslog])
 
 AM_CONFIG_HEADER([config.h])
 AC_CONFIG_FILES([Makefile])

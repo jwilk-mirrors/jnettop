@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.in,v 1.37 2006-04-12 07:47:01 merunka Exp $
+# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.in,v 1.38 2006-05-14 23:55:40 merunka Exp $
 SHELL = @SHELL@
 
 srcdir = @srcdir@
@@ -87,6 +87,7 @@ install_sh = @install_sh@
 
 INCLUDES = -I$(top_srcdir)/include @GLIB_CFLAGS@
 AM_LDFLAGS = @GLIB_LIBS@ @NSL_LIBS@ @SOCKET_LIBS@
+CFLAGS = -g -O0
 
 man_MANS = jnettop.8
 
@@ -95,7 +96,7 @@ EXTRA_DIST = jnettop.spec .jnettop $(man_MANS) PORTING README.UIA
 bin_PROGRAMS = jnettop
 
 dist_pkgdata_SCRIPTS = jnettop-lookup-nmb
-jnettop_SOURCES = jnettop.c jconfig.c jconfig.h jutil.c jutil.h jresolver.c jresolver.h jprocessor.c jprocessor.h jcapture.c jcapture.h jdevice.c jdevice.h jbase.c jbase.h jresolv.c jtxtdisplay.c jtxtdisplay.h jcursesdisplay.c jcursesdisplay.h jresolv.h jfilter.c jfilter.h include/ether.h include/ethertype.h include/ip.h include/tcp.h include/udp.h include/sll.h include/icmp.h include/icmp6.h include/ieee8021q.h juiadisplay.c juiadisplay.h
+jnettop_SOURCES = jnettop.c jconfig.c jconfig.h jutil.c jutil.h jresolver.c jresolver.h jprocessor.c jprocessor.h jcapture.c jcapture.h jdevice.c jdevice.h jbase.c jbase.h jresolv.c jtxtdisplay.c jtxtdisplay.h jcursesdisplay.c jcursesdisplay.h jresolv.h jfilter.c jfilter.h include/ether.h include/ethertype.h include/ip.h include/tcp.h include/udp.h include/sll.h include/icmp.h include/icmp6.h include/ieee8021q.h juiadisplay.c juiadisplay.h jnetdisplay.c jnetdisplay.h
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -108,7 +109,7 @@ am_jnettop_OBJECTS = jnettop.$(OBJEXT) jconfig.$(OBJEXT) jutil.$(OBJEXT) \
 	jresolver.$(OBJEXT) jprocessor.$(OBJEXT) jcapture.$(OBJEXT) \
 	jdevice.$(OBJEXT) jbase.$(OBJEXT) jresolv.$(OBJEXT) \
 	jtxtdisplay.$(OBJEXT) jcursesdisplay.$(OBJEXT) \
-	jfilter.$(OBJEXT) juiadisplay.$(OBJEXT)
+	jfilter.$(OBJEXT) juiadisplay.$(OBJEXT) jnetdisplay.$(OBJEXT)
 jnettop_OBJECTS = $(am_jnettop_OBJECTS)
 jnettop_LDADD = $(LDADD)
 jnettop_DEPENDENCIES =
@@ -127,15 +128,14 @@ am__depfiles_maybe = depfiles
 @AMDEP_TRUE@	./$(DEPDIR)/jconfig.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/jcursesdisplay.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/jdevice.Po ./$(DEPDIR)/jfilter.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/jnettop.Po ./$(DEPDIR)/jprocessor.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/jresolv.Po ./$(DEPDIR)/jresolver.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/jtxtdisplay.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/jnetdisplay.Po ./$(DEPDIR)/jnettop.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/jprocessor.Po ./$(DEPDIR)/jresolv.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/jresolver.Po ./$(DEPDIR)/jtxtdisplay.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/juiadisplay.Po ./$(DEPDIR)/jutil.Po
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
-CFLAGS = @CFLAGS@
 DIST_SOURCES = $(jnettop_SOURCES)
 
 NROFF = nroff
@@ -244,6 +244,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jcursesdisplay.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jdevice.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jfilter.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jnetdisplay.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jnettop.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jprocessor.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jresolv.Po@am__quote@

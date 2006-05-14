@@ -16,7 +16,7 @@
  *    along with this program; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jprocessor.c,v 1.4 2005-07-01 10:02:08 merunka Exp $
+ *    $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jprocessor.c,v 1.5 2006-05-14 23:55:40 merunka Exp $
  *
  */
 
@@ -223,6 +223,8 @@ static void	aggregateStream(jbase_stream *stream) {
 }
 
 static void	sortPacket(const jbase_packet *packet) {
+	static volatile guint64 packetUidCounter = 0;
+	
 	jbase_stream	packetStream;
 	jbase_stream	*stat;
 	jbase_payload_info	payloadInfo[JBASE_PROTO_MAX];
@@ -237,6 +239,7 @@ static void	sortPacket(const jbase_packet *packet) {
 		stat = g_new0(jbase_stream, 1);
 		memcpy(stat, &packetStream, sizeof(jbase_stream));
 		g_get_current_time(&stat->firstSeen);
+		stat->uid = packetUidCounter++;
 		g_hash_table_insert(streamTable, stat, stat);
 		g_mutex_unlock(streamTableMutex);
 
