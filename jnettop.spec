@@ -1,4 +1,4 @@
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/jnettop.spec,v 1.17 2006-05-14 23:55:40 merunka Exp $
+# $Header$
 
 Summary: Network traffic tracker
 Name: jnettop

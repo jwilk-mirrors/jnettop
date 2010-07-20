@@ -34,4 +34,4 @@ COMPILABLE      Package can be built, but I didn't have root access to test,
                 whether it actually works.
 RUNNING         Package can be compiled and it worked.
 
-$Header: /home/jakubs/DEV/jnettop-conversion/jnettop/PORTING,v 1.12 2006-05-14 23:55:40 merunka Exp $
+$Header$

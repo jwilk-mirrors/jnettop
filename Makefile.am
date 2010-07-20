@@ -1,4 +1,4 @@
-# $Header: /home/jakubs/DEV/jnettop-conversion/jnettop/Makefile.am,v 1.15 2006-05-14 23:55:40 merunka Exp $
+# $Header$
 
 INCLUDES = -I$(top_srcdir)/include @GLIB_CFLAGS@
 AM_LDFLAGS = @GLIB_LIBS@ @NSL_LIBS@ @SOCKET_LIBS@
